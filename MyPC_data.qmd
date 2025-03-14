@@ -1,0 +1,37 @@
+---
+title: "MyPC_data"
+format: html
+editor: visual
+---
+
+```{r}
+library(readr)
+MyPC_2023 <- read_csv("~/data librarian/MyPC_data/MyPC_2023_siteAndLocationUsage.csv", 
+                      skip = 15)
+MyPC_2024 <- read_csv("~/data librarian/MyPC_data/MyPC_2024_siteAndLocationUsage.csv", 
+                      skip = 15)
+MyPC_2025 <- read_csv("~/data librarian/MyPC_data/MyPC_Mar13_2025_siteAndLocationUsage.csv", 
+                      skip = 15)
+MyPC_all <- rbind(MyPC_2023, MyPC_2024, MyPC_2025)
+
+# View(MyPC_2023)
+```
+
+Aggregated MyPC data
+```{r}
+# drop all test cases
+MyPC_public <- MyPC_all %>% 
+  filter(Site != "Test") %>% 
+  select(-Name)
+```
+
+Convert id into character
+```{r}
+MyPC_public$`Login ID` <- as.character(MyPC_public$`Login ID`)
+```
+
+Save csv
+```{r}
+write.csv(MyPC_public, "MyPC_2023-2025-public.csv")
+```
+
