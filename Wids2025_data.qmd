@@ -1,0 +1,302 @@
+---
+title: "WidsS_quarto"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+```{r}
+# load libraries 
+
+library(tidyverse)
+library(readr)
+library(tidyr)
+library(lubridate)
+```
+
+
+```{r}
+# read in data
+PITS_ListIncidents_Jan2025 <- read_csv("~/data librarian/Wids_data/PITS_ListIncidents_Jan2025.csv")
+
+# View(PITS_ListIncidents_Jan2025)
+# PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
+# PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
+
+# PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2024.csv")
+
+# PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
+
+# # merge the years
+# PITS_2023_2024 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024)
+
+```
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+
+PITS_ListIncidents_Jan2025 %>% summarise(count = n_distinct(Reporter))
+
+# as.list(unique(PITS_ListIncidents_Jan2025$Reporter))
+
+```
+
+
+```{r}
+# Generate unique alternate IDs
+# Function to generate consistent masked IDs
+generate_consistent_ids <- function(names) {
+  # Create a unique mapping of original names to masked IDs
+  unique_names <- unique(names)
+  masked_ids <- paste0("ID_", sprintf("%04d", seq_along(unique_names)))
+  
+  # Create a named vector for easy lookup
+  id_mapping <- setNames(masked_ids, unique_names)
+  
+  # Map the original names to their consistent masked IDs
+  return(id_mapping[names])
+}
+
+# Generate consistent masked IDs
+PITS_ListIncidents_Jan2025$masked_reporter <- generate_consistent_ids(PITS_ListIncidents_Jan2025$Reporter)
+
+# Create a lookup table
+lookup_table_reporter <- PITS_ListIncidents_Jan2025 %>%
+  select(original_name = Reporter, masked_reporter) %>%
+  distinct()
+
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+# change date 
+PITS_ListIncidents_Jan2025$Date2 <- as.Date(PITS_ListIncidents_Jan2025$Date, format = "%m/%d/%Y")
+
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+library(hms) 
+# Function to process time values including HMS format
+process_time <- function(time_str) {
+  # Check if already a time object (hms or POSIXct)
+  if (inherits(time_str, "hms") || inherits(time_str, "POSIXct") || inherits(time_str, "POSIXlt")) {
+    return(as.POSIXct(time_str))
+  }
+  
+  # Handle NA or non-character values
+  if (is.na(time_str) || !is.character(time_str)) {
+    return(NA)
+  }
+  
+  # Process character time strings
+  tryCatch({
+    if (grepl("AM|PM", time_str, ignore.case = TRUE)) {
+      # 12-hour format with AM/PM
+      parse_date_time(time_str, orders = c("I:M p", "H:M p"))
+    } else if (grepl(":", time_str, fixed = TRUE)) {
+      # 24-hour format (HH:MM or HH:MM:SS)
+      if (length(gregexpr(":", time_str)[[1]]) == 2) {
+        parse_date_time(time_str, orders = "H:M:S")
+      } else {
+        parse_date_time(time_str, orders = "H:M")
+      }
+    } else {
+      NA
+    }
+  }, error = function(e) NA)
+}
+
+# Apply the conversion to your dataframe
+PITS_ListIncidents_Jan2025 <- PITS_ListIncidents_Jan2025 %>%
+  mutate(
+    # Convert times using mapply
+    time_parsed = {
+      mapply(process_time, Time, SIMPLIFY = FALSE) %>%
+        do.call(c, .) %>%
+        as.POSIXct(origin = "1970-01-01")
+    },
+    
+    # Format as standardized time strings
+    time_24h = format(time_parsed, "%H:%M:%S"),
+    time_12h = format(time_parsed, "%I:%M:%S %p")
+  )
+```
+
+```{r}
+# read in all activities and circ data
+library(readxl)
+X2025_01_All_Activities_copy <- read_excel("~/data librarian/Wids_data/2025-01 All Activities_copy.xlsx")
+
+All_activities_Jan2025 <- X2025_01_All_Activities_copy %>% 
+  select(-...2) %>% 
+  filter(!grepl('2024|2025|Percent', Location))
+
+# append Jan2025 to all variables
+colnames(All_activities_Jan2025) <- paste0('JAN2025_', colnames(All_activities_Jan2025))
+
+All_activities_Jan2025 <- All_activities_Jan2025 %>% 
+  filter(!is.na(JAN2025_Location))
+
+# circulation data
+X2025_01_Circulation_copy <- read_excel("~/data librarian/Wids_data/2025-01 Circulation_copy.xlsx")
+
+Circulation_Jan2025 <- X2025_01_Circulation_copy %>% 
+  select(Library, `January 2025 Circulation`) %>% 
+  filter(!grepl('Total', Library)) %>% 
+  rename(Location = Library) 
+  
+
+```
+
+```{r}
+str(All_activities_Jan2025$JAN2025_Location)
+str(Circulation_Jan2025$Location)
+```
+
+
+```{r}
+# # read in gate count data
+# Gate_Count_for_Jan_2024_Jan_2025 <- read_csv("~/data librarian/Wids_data/Gate Count for Jan 2024 - Jan 2025.csv")
+```
+```{r}
+# location name consistency 
+# Create a master location mapping table
+location_mapping <- data.frame(
+  standard_name = c(
+    "Joel D. Valdez-Main", "Himmel Park", "Murphy-Wilmot", "Woods Memorial",
+    "Valencia", "Martha Cooper", "Flowing Wells", "Sahuarita",
+    "Wheeler Taft Abbett", "Miller-Golf Links", "Eckstrom-Columbus",
+    "Santa Rosa", "Sam Lena-South Tucson", "Oro Valley", "Quincie Douglas",
+    "Bookmobile/Readrunners", "Caviglia-Arivaca", "Dewhirst-Catalina", 
+    "Dusenberry-River", "El Rio", "Frank De La Cruz-El Pueblo",
+    "Joyner-Green Valley", "Kirk-Bear Canyon", "Nanini", 
+    "Richard Elias-Mission", "Salazar-Ajo", "Southwest",
+    "W. Anne Gibson-Esmond Station", "Web Renewal"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Function to standardize location names
+standardize_location <- function(location) {
+  # Remove common suffixes
+  location <- gsub(" Branch Library$|\\s+Library$", "", location)
+  
+  # Handle specific cases
+  location <- gsub("^Joel Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Joel D Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Bookmobile-Readrunners$", "Bookmobile/Readrunners", location)
+  location <- gsub("^Quincie Douglas$", "Quincie Douglas", location)
+  location <- gsub("^Virtual Library$", "Web Renewal", location)
+  
+  # Return the standardized name
+  return(location)
+}
+
+# Apply standardization to each dataset
+standardize_dataset <- function(df, location_col_name) {
+  if(location_col_name %in% colnames(df)) {
+    df$Location_Standard <- standardize_location(df[[location_col_name]])
+    return(df)
+  } else {
+    warning(paste("Column", location_col_name, "not found in dataset"))
+    return(df)
+  }
+}
+
+# Apply to all three datasets
+All_activities_Jan2025 <- standardize_dataset(All_activities_Jan2025, "JAN2025_Location")
+Circulation_Jan2025 <- standardize_dataset(Circulation_Jan2025, "Location")
+PITS_ListIncidents_Jan2025 <- standardize_dataset(PITS_ListIncidents_Jan2025, "Location")
+# gate_count_Jan2025 <- standardize_dataset(gate_count_Jan2025, "Location")
+
+# For merging datasets
+merge_by_location <- function(df1, df2, by.x = "Location_Standard", by.y = "Location_Standard", ...) {
+  merge(df1, df2, by.x = by.x, by.y = by.y, ...)
+}
+
+```
+
+```{r}
+# subset gate count data 
+gate_count_Jan2025 <- All_activities_Jan2025 %>% 
+  select(JAN2025_Location, `JAN2025_Gate Count`) %>% 
+  rename(Location = JAN2025_Location) %>% 
+  rename(Gate_Count = `JAN2025_Gate Count`)
+
+gate_count_Jan2025 <- standardize_dataset(gate_count_Jan2025, "Location")
+
+```
+
+
+
+```{r}
+
+PITS_ListIncidents_Jan2025 %>% 
+  select(Date2, time_12h, Location_Standard, Infractions) %>% 
+    group_by(Location_Standard) %>% 
+    dplyr::summarize(Incident_count = n()) %>% # count records
+    left_join(gate_count_Jan2025) %>% 
+    select(-Location) %>%
+    mutate(Incident_Percentage = round((Incident_count / Gate_Count) * 100, 3)) %>% 
+    arrange(desc(Incident_Percentage))
+    
+
+    # dplyr::mutate(pct = scales::percent(Incident_count/sum(count), accuracy = 0.1)) %>%
+    # 
+
+```
+
+
+```{r}
+
+#   
+```
+
+
+```{r}
+# Combine data
+# combined_Jan2025_data <- All_activities_Jan2025 %>%
+#   merge_by_location(Circulation_Jan2025) %>% 
+#   merge_by_location(PITS_ListIncidents_Jan2025) 
+
+
+PITS_ListIncidents_Jan2025 %>% 
+  select(Date, time_12h, Location_Standard, Infractions) %>% 
+  left_join(gate_count_Jan2025) %>%
+  select(-Location) %>% 
+  group_by(Location_Standard) %>% 
+  ungroup()
+```
+
+```{r}
+
+```
+
+
+```{r}
+# Relocate columns containing "JAN2025_" to the end of the dataframe
+combined_Jan2025_data <- combined_Jan2025_data %>%
+  relocate(contains("JAN2025_"), .after = last_col())
+
+```
+
+
+```{r}
+# save a copy of the data without discerning columns
+PITS_2023_2024_public <- 
+  PITS_2023_2024 %>%
+  select(-Reporter, -People)
+
+write.csv(PITS_2023_2024, "pits2023-2024-public.csv")
+
+```
+
