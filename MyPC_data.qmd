@@ -46,8 +46,8 @@ MyPC_public <- MyPC_public %>%
 # MyPC_public$Booking_time <- format(as.POSIXct(MyPC_public$`Booking From`), format = "%H:%M")
 #   # mutate(hms = lubridate::hms(substr(`Booking From`, 11, nchar(`Booking From`))))
 
-# MyPC_public %>%
-#   mutate(booking_time = lubridate::hms(substr(booking_from, 11, nchar(booking_from))))
+MyPC_public <- MyPC_public %>%
+ mutate(booking_time = format(booking_from, format = "%H:%M:%S"))
 ```
 
 
