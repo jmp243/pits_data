@@ -1,0 +1,683 @@
+---
+title: "PITS_quarto"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+### load libraries
+```{r}
+# load libraries 
+library(plotly)
+library(tidyverse)
+library(readr)
+library(crosstalk)
+library(lubridate)
+```
+
+## Read in PITS data
+```{r}
+# read in data
+PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2023.csv")
+PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
+PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
+
+PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2024.csv")
+
+PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
+
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March13_2025.csv")
+
+# merge the years
+PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
+
+```
+
+### Count unique reporters
+```{r}
+PITS_2023_2025 %>% summarise(count = n_distinct(Reporter))
+
+# as.list(unique(PITS_2023_2024$Reporter))
+
+```
+
+## Mask Reporter IDs
+```{r}
+# Generate unique alternate IDs
+# Function to generate consistent masked IDs
+generate_consistent_ids <- function(names) {
+  # Create a unique mapping of original names to masked IDs
+  unique_names <- unique(names)
+  masked_ids <- paste0("ID_", sprintf("%04d", seq_along(unique_names)))
+  
+  # Create a named vector for easy lookup
+  id_mapping <- setNames(masked_ids, unique_names)
+  
+  # Map the original names to their consistent masked IDs
+  return(id_mapping[names])
+}
+
+# Generate consistent masked IDs
+PITS_2023_2025$masked_reporter <- generate_consistent_ids(PITS_2023_2025$Reporter)
+
+# Create a lookup table
+lookup_table_reporter <- PITS_2023_2025 %>%
+  select(original_name = Reporter, masked_reporter) %>%
+  distinct()
+
+```
+
+
+```{r}
+# Turn follow-up into a binary 
+# none versus other text
+PITS_2023_2025 <- PITS_2023_2025 %>% 
+  mutate(Followup_binary = ifelse(Followup == "NONE", 0, 1))
+
+```
+
+
+
+
+```{r}
+# save a copy of the data without discerning columns
+PITS_2023_2025_public <- 
+  PITS_2023_2025 %>%
+  select(-Reporter, -People, -Followup)
+
+
+
+```
+
+
+
+## Add datetime PITS data
+```{r}
+#| echo: false
+# change date 
+PITS_2023_2025_public$Date2 <- as.Date(PITS_2023_2025_public$Date, format = "%m/%d/%Y")
+
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+# Clean up the Time format in PITS
+```{r}
+# Using rowwise() to parse time
+PITS_2023_2025_public <- PITS_2023_2025_public %>%
+  rowwise() %>%
+  mutate(
+    # Process one row at a time
+    time_parsed = {
+      time_str <- Time
+      if (is.na(time_str) || !is.character(time_str)) {
+        NA
+      } else if (grepl("AM|PM", time_str, ignore.case = TRUE)) {
+        parse_date_time(time_str, orders = c("I:M p", "H:M p"))
+      } else if (grepl(":", time_str, fixed = TRUE)) {
+        if (length(gregexpr(":", time_str)[[1]]) == 2) {
+          parse_date_time(time_str, orders = "H:M:S")
+        } else {
+          parse_date_time(time_str, orders = "H:M")
+        }
+      } else {
+        NA
+      }
+    }
+  ) %>%
+  ungroup() %>%
+  mutate(
+    time_24h = format(time_parsed, "%H:%M:%S"),
+    time_12h = format(time_parsed, "%I:%M:%S %p")
+  )
+
+```
+
+
+```{r}
+# PITS_2023_2024_subset <- PITS_2023_2025 %>% 
+#   filter(between(Date2, as.Date('2023-11-24'), as.Date('2024-11-24')))
+```
+
+
+## Standardize Location format
+```{r}
+# match location standard for computer use
+# location name consistency 
+# Create a master location mapping table
+location_mapping <- data.frame(
+  standard_name = c(
+    "Joel D. Valdez-Main", "Himmel Park", "Murphy-Wilmot", "Woods Memorial",
+    "Valencia", "Martha Cooper", "Flowing Wells", "Sahuarita",
+    "Wheeler Taft Abbett", "Miller-Golf Links", "Eckstrom-Columbus",
+    "Santa Rosa", "Sam Lena-South Tucson", "Oro Valley", "Quincie Douglas",
+    "Bookmobile/Readrunners", "Caviglia-Arivaca", "Dewhirst-Catalina", 
+    "Dusenberry-River", "El Rio", "Frank De La Cruz-El Pueblo",
+    "Joyner-Green Valley", "Kirk-Bear Canyon", "Nanini", 
+    "Richard Elias-Mission", "Salazar-Ajo", "Southwest",
+    "W. Anne Gibson-Esmond Station", "Web Renewal"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Function to standardize location names
+standardize_location <- function(location) {
+  # Remove common suffixes
+  location <- gsub(" Branch Library$|\\s+Library$", "", location)
+  
+  # Handle specific cases
+  location <- gsub("^Joel Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Joel D Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Bookmobile-Readrunners$", "Bookmobile/Readrunners", location)
+  location <- gsub("^Quincie Douglas$", "Quincie Douglas", location)
+  location <- gsub("^Virtual Library$", "Web Renewal", location)
+  
+  # Return the standardized name
+  return(location)
+}
+
+# Apply standardization to each dataset
+standardize_dataset <- function(df, location_col_name) {
+  if(location_col_name %in% colnames(df)) {
+    df$Location_Standard <- standardize_location(df[[location_col_name]])
+    return(df)
+  } else {
+    warning(paste("Column", location_col_name, "not found in dataset"))
+    return(df)
+  }
+}
+
+# Apply to all three datasets
+PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
+# last52weeks_circ <- standardize_dataset(last52weeks_circ, "Location")
+# last52weeks_comp <- standardize_dataset(last52weeks_comp, "Location")
+
+```
+
+# hourly summary of PITS from Jan 2023 to March 2025
+```{r}
+# group pits incidents by the hour
+
+# Assuming your data is in a data frame called 'df' with a column 'timestamp'
+# Group by hour
+PITS_2023_2025_public$hour_group <- floor_date(PITS_2023_2025_public$time_parsed, unit = "hour")
+
+# For visualization/labeling, you can format the hour
+PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00-%H:59")
+
+
+```
+
+```{r}
+
+# Group by hour and count events
+hourly_summary <- PITS_2023_2025_public %>%
+  select(hour_label, Location, Infractions, time_parsed, Date2) %>% 
+  mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
+  group_by(hour_label) %>%
+  summarize(
+    Total_Hourly_Count = n(),
+    # other aggregate metrics as needed
+  )
+
+# more information 
+hourly_location_summary <- PITS_2023_2025_public %>%
+  select(hour_label, Location_Standard, time_parsed, Date2) %>% 
+  mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
+  group_by(hour_label, Location_Standard) %>%
+  summarize(
+    count = n(),
+    .groups = "drop"
+  ) %>%
+  # Create a wide format with Location combinations as columns
+  pivot_wider(
+    names_from = c(Location_Standard),
+    values_from = count,
+    values_fill = 0
+  )
+
+# join the two charts
+hourly_loc_sum_total <-  hourly_summary %>% 
+                                    left_join(hourly_location_summary)
+```
+# Visualize hourly data
+```{r}
+# Basic interactive bar chart of hourly counts
+plot_hourly <- plot_ly(hourly_loc_sum_total,
+                       x = ~hour_label,
+                       y = ~Total_Hourly_Count,
+                       type = "bar",
+                       name = "Total") %>%
+  layout(title = "Events by Hour",
+         xaxis = list(title = "Hour of Day", tickangle = 45),
+         yaxis = list(title = "Number of Events"),
+         hovermode = "compare")
+
+# For location breakdown, convert to long format first
+hourly_loc_long <- hourly_loc_sum_total %>%
+  pivot_longer(
+    cols = -c(hour_label, Total_Hourly_Count),
+    names_to = "Location",
+    values_to = "Count"
+  )
+
+# Interactive stacked bar chart by location
+plot_by_location <- plot_ly(hourly_loc_long,
+                           x = ~hour_label,
+                           y = ~Count,
+                           color = ~Location,
+                           type = "bar") %>%
+  layout(title = "Events by Location and Hour",
+         xaxis = list(title = "Hour of Day", tickangle = 45),
+         yaxis = list(title = "Number of Events"),
+         barmode = "stack",
+         hovermode = "compare")
+
+# Display the plots
+plot_hourly
+
+```
+
+# Visualize with location
+```{r}
+# plot_by_location
+# Here's how to add interactivity to highlight a single location:
+# rCopy
+# Create a plotly visualization with buttons to filter by location
+# locations <- unique(hourly_loc_long$Location)
+# 
+# # Create a list of buttons, one for each location plus "All"
+# buttons <- list(
+#   list(
+#     method = "update",
+#     args = list(list(visible = rep(TRUE, length(locations))),
+#                 list(title = "Events by Location and Hour - All Locations")),
+#     label = "All"
+#   )
+# )
+# 
+# # Add a button for each location
+# for(i in 1:length(locations)) {
+#   visible <- rep(FALSE, length(locations))
+#   visible[i] <- TRUE
+#   
+#   buttons <- c(buttons, list(
+#     list(
+#       method = "update",
+#       args = list(list(visible = visible),
+#                   list(title = paste0("Events by Location and Hour - ", locations[i]))),
+#       label = locations[i]
+#     )
+#   ))
+# }
+# 
+# # Create the base plot
+# plot_by_location <- plot_ly()
+# 
+# # Add each location as a separate trace
+# for(i in 1:length(locations)) {
+#   loc_data <- filter(hourly_loc_long, Location == locations[i])
+#   
+#   plot_by_location <- plot_by_location %>%
+#     add_trace(
+#       data = loc_data,
+#       x = ~hour_label,
+#       y = ~Count,
+#       type = "bar",
+#       name = locations[i],
+#       marker = list(color = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))[i])
+#     )
+# }
+
+# # Add the buttons and layout
+# plot_by_location <- plot_by_location %>%
+#   layout(
+#     title = "Events by Location and Hour",
+#     xaxis = list(title = "Hour of Day", tickangle = 45),
+#     yaxis = list(title = "Number of Events"),
+#     barmode = "stack",
+#     hovermode = "compare",
+#     updatemenus = list(
+#       list(
+#         type = "dropdown",
+#         buttons = buttons,
+#         direction = "down",
+#         showactive = TRUE,
+#         x = 1.1,
+#         y = 0.5
+#       )
+#     )
+#   )
+# 
+# # Add double-click functionality for highlighting
+# plot_by_location <- plot_by_location %>%
+#   layout(
+#     legend = list(
+#       itemclick = "toggleothers",
+#       itemdoubleclick = "toggle"
+#     )
+#   )
+# 
+# # Display the plot
+# plot_by_location
+```
+
+
+```{r}
+# Create a plotly visualization with buttons to filter by location but no legend
+locations <- sort(unique(hourly_loc_long$Location))  # Sort locations alphabetically
+
+# Create a list of buttons, one for each location plus "All"
+buttons <- list(
+  list(
+    method = "update",
+    args = list(list(visible = rep(TRUE, length(locations))),
+                list(title = "Events by Location and Hour - All Locations")),
+    label = "All"
+  )
+)
+
+# Add a button for each location in alphabetical order
+for(i in 1:length(locations)) {
+  visible <- rep(FALSE, length(locations))
+  visible[i] <- TRUE
+  
+  buttons <- c(buttons, list(
+    list(
+      method = "update",
+      args = list(list(visible = visible),
+                  list(title = paste0("Events by Location and Hour - ", locations[i]))),
+      label = locations[i]
+    )
+  ))
+}
+
+# Create the base plot
+plot_by_location <- plot_ly()
+
+# Add each location as a separate trace
+for(i in 1:length(locations)) {
+  loc_data <- filter(hourly_loc_long, Location == locations[i])
+  
+  plot_by_location <- plot_by_location %>%
+    add_trace(
+      data = loc_data,
+      x = ~hour_label,
+      y = ~Count,
+      type = "bar",
+      name = locations[i],
+      marker = list(color = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))[i])
+    )
+}
+
+# Add the buttons and layout - moved to upper left and removed legend
+plot_by_location <- plot_by_location %>%
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "compare",
+    showlegend = FALSE,  # Remove the legend
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = buttons,
+        direction = "down",
+        showactive = TRUE,
+        x = 1.1,
+        y = 1
+    ))
+  )
+
+# Display the plot
+plot_by_location
+```
+
+```{r}
+
+# Assuming hourly_loc_long has a Date column
+# Extract unique dates
+dates <- sort(unique(as.Date(hourly_loc_long$Date2)))
+min_date <- min(dates)
+max_date <- max(dates)
+
+# Create the base plot with date filtering
+plot_by_location <- plot_ly()
+
+# Add each location as a separate trace
+for(i in 1:length(locations)) {
+  loc_data <- filter(hourly_loc_long, Location == locations[i])
+  
+  plot_by_location <- plot_by_location %>%
+    add_trace(
+      data = loc_data,
+      x = ~hour_label,
+      y = ~Count,
+      type = "bar",
+      name = locations[i],
+      marker = list(color = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))[i]),
+      transforms = list(
+        list(
+          type = 'filter',
+          target = ~Date2,
+          operation = '>=',
+          value = min_date
+        ),
+        list(
+          type = 'filter',
+          target = ~Date,
+          operation = '<=',
+          value = max_date
+        )
+      )
+    )
+}
+
+# Add the buttons, layout, and range slider
+plot_by_location <- plot_by_location %>%
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "compare",
+    showlegend = FALSE,
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = buttons,
+        direction = "down",
+        showactive = TRUE,
+        x = 0.1,
+        y = 1.1
+      )
+    ),
+    # Add date range selector
+    sliders = list(
+      list(
+        active = length(dates) - 1,
+        currentvalue = list(prefix = "Date: "),
+        pad = list(t = 50),
+        steps = lapply(seq_along(dates), function(i) {
+          list(
+            method = "update",
+            args = list(
+              list(transforms = lapply(1:length(locations), function(j) {
+                list(
+                  list(
+                    type = 'filter',
+                    target = ~Date2,
+                    operation = '>=',
+                    value = min_date
+                  ),
+                  list(
+                    type = 'filter',
+                    target = ~Date2,
+                    operation = '<=',
+                    value = dates[i]
+                  )
+                )
+              })),
+              list(title = paste0("Events by Location and Hour (Up to ", dates[i], ")"))
+            ),
+            label = as.character(dates[i])
+          )
+        })
+      )
+    )
+  )
+
+# Display the plot
+plot_by_location
+```
+
+```{r}
+# The code isn't working for several reasons. I'll explain the issues and provide a fixed version:
+# Main Issues:
+# 
+# Missing Data Column: Your hourly_loc_long data frame likely doesn't contain a Date2 column. The error occurs when trying to filter on a non-existent column.
+# Transforms Structure: The transforms parameter structure is incorrect - it's not properly configured for plotly's filter transforms.
+# Slider Configuration: The slider configuration has nested lists incorrectly.
+# 
+# Fixed Code:
+# rCopy# First, make sure Date2 exists in your data
+# # If Date2 isn't in hourly_loc_long, you need to add it
+# For example:
+# hourly_loc_long$Date2 <- as.Date("2023-01-01")  # Replace with actual dates from your data
+
+# Get unique dates and sort them
+dates <- sort(unique(as.Date(hourly_loc_long$Date2)))
+min_date <- min(dates)
+max_date <- max(dates)
+
+# Create dropdown buttons for locations
+locations <- sort(unique(hourly_loc_long$Location))
+buttons <- list(
+  list(
+    method = "update",
+    args = list(list(visible = rep(TRUE, length(locations))),
+                list(title = "Events by Location and Hour - All Locations")),
+    label = "All"
+  )
+)
+
+for(i in 1:length(locations)) {
+  visible <- rep(FALSE, length(locations))
+  visible[i] <- TRUE
+  
+  buttons <- c(buttons, list(
+    list(
+      method = "update",
+      args = list(list(visible = visible),
+                  list(title = paste0("Events by Location and Hour - ", locations[i]))),
+      label = locations[i]
+    )
+  ))
+}
+
+# Create base plot
+plot_by_location <- plot_ly()
+
+# Add each location as a separate trace
+for(i in 1:length(locations)) {
+  loc_data <- filter(hourly_loc_long, Location == locations[i])
+  
+  plot_by_location <- plot_by_location %>%
+    add_trace(
+      data = loc_data,
+      x = ~hour_label,
+      y = ~Count,
+      type = "bar",
+      name = locations[i],
+      marker = list(color = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))[i])
+    )
+}
+
+# Create date slider steps
+slider_steps <- list()
+for(i in seq_along(dates)) {
+  slider_steps[[i]] <- list(
+    method = "restyle",
+    args = list(
+      "transforms[0].value", dates[i]
+    ),
+    label = as.character(dates[i])
+  )
+}
+
+# Add layout with simplified date filtering
+plot_by_location <- plot_by_location %>%
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "compare",
+    showlegend = FALSE,
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = buttons,
+        direction = "down",
+        showactive = TRUE,
+        x = 0.1,
+        y = 0.9
+      )
+    )
+  )
+
+# Display the plot
+plot_by_location
+```
+
+
+```{r}
+# attempt to add the min/max date filter
+library(plotly)
+library(dplyr)
+library(crosstalk)
+
+# Create a shared data object
+shared_data <- SharedData$new(hourly_loc_long)
+
+# Create your plot using the shared data
+plot_by_location <- plot_ly(shared_data) %>%
+  group_by(Location) %>%
+  summarise(hour_label = hour_label, Count = Count) %>%
+  plot_ly(
+    x = ~hour_label,
+    y = ~Count,
+    color = ~Location,
+    type = "bar",
+    colors = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))
+  ) %>%
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "compare",
+    showlegend = FALSE
+  )
+
+# Combine with filter controls in a dashboard
+bscols(
+  list(
+    filter_select("location", "Location", shared_data, ~Location),
+    filter_slider("date", "Date Range", shared_data, ~Date)
+  ),
+  plot_by_location,
+  widths = c(3, 9)
+)
+```
+
+```{r}
+write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
+```
+
