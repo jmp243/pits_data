@@ -6,6 +6,7 @@ editor: visual
 
 ```{r}
 library(readr)
+library(tidyverse)
 MyPC_2023 <- read_csv("~/data librarian/MyPC_data/MyPC_2023_siteAndLocationUsage.csv", 
                       skip = 15)
 MyPC_2024 <- read_csv("~/data librarian/MyPC_data/MyPC_2024_siteAndLocationUsage.csv", 
@@ -30,7 +31,98 @@ Convert id into character
 MyPC_public$`Login ID` <- as.character(MyPC_public$`Login ID`)
 ```
 
-Save csv
+# create a new column to parse out the date 
+```{r}
+library(lubridate)
+
+# Create new date variable with lubridate
+MyPC_public <- MyPC_public %>%
+  mutate(booking_from = mdy_hm(`Booking From`))
+
+MyPC_public <- MyPC_public %>%
+  mutate(booking_date = as.Date(`Booking From`, format = "%m/%d/%Y"))
+
+# Create new date variable from login time
+# MyPC_public$Booking_time <- format(as.POSIXct(MyPC_public$`Booking From`), format = "%H:%M")
+#   # mutate(hms = lubridate::hms(substr(`Booking From`, 11, nchar(`Booking From`))))
+
+# MyPC_public %>%
+#   mutate(booking_time = lubridate::hms(substr(booking_from, 11, nchar(booking_from))))
+```
+
+
+# Rename Location and Site columns
+```{r}
+as.list(unique(MyPC_public$Site))
+
+MyPC_public <- MyPC_public %>%
+  rename(Location_detail = Location) %>% 
+  rename(Location = Site)
+
+```
+
+# standardize location
+```{r}
+# Create a master location mapping table
+location_mapping <- data.frame(
+  standard_name = c(
+    "Joel D. Valdez-Main", "Himmel Park", "Murphy-Wilmot", "Woods Memorial",
+    "Valencia", "Martha Cooper", "Flowing Wells", "Sahuarita",
+    "Wheeler Taft Abbett", "Miller-Golf Links", "Eckstrom-Columbus",
+    "Santa Rosa", "Sam Lena-South Tucson", "Oro Valley", "Quincie Douglas",
+    "Bookmobile/Readrunners", "Caviglia-Arivaca", "Dewhirst-Catalina", 
+    "Dusenberry-River", "El Rio", "Frank De La Cruz-El Pueblo",
+    "Joyner-Green Valley", "Kirk-Bear Canyon", "Nanini", 
+    "Richard Elias-Mission", "Salazar-Ajo", "Southwest",
+    "W. Anne Gibson-Esmond Station", "Web Renewal"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Function to standardize location names
+standardize_location <- function(location) {
+  # Remove common suffixes
+  location <- gsub(" Branch Library$|\\s+Library$", "", location)
+  
+  # Handle specific cases
+  location <- gsub("^Joel Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Joel D Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Bookmobile-Readrunners$", "Bookmobile/Readrunners", location)
+  location <- gsub("^Quincie Douglas$", "Quincie Douglas", location)
+  location <- gsub("^Virtual Library$", "Web Renewal", location)
+  
+  # Return the standardized name
+  return(location)
+}
+
+# Apply standardization to each dataset
+standardize_dataset <- function(df, location_col_name) {
+  if(location_col_name %in% colnames(df)) {
+    df$Location_Standard <- standardize_location(df[[location_col_name]])
+    return(df)
+  } else {
+    warning(paste("Column", location_col_name, "not found in dataset"))
+    return(df)
+  }
+}
+
+# Apply to all three datasets
+MyPC_public <- standardize_dataset(MyPC_public, "Location")
+
+
+# # For merging datasets
+# merge_by_location <- function(df1, df2, by.x = "Location_Standard", by.y = "Location_Standard", ...) {
+#   merge(df1, df2, by.x = by.x, by.y = by.y, ...)
+# }
+
+```
+
+```{r}
+as.list(unique(MyPC_public$Location_Standard))
+```
+
+
+### Save csv
 ```{r}
 write.csv(MyPC_public, "MyPC_2023-2025-public.csv")
 ```
