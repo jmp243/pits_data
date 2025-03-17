@@ -9,7 +9,9 @@ editor: visual
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
 ## Running Code
+
 ### load libraries
+
 ```{r}
 # load libraries 
 library(plotly)
@@ -20,6 +22,7 @@ library(lubridate)
 ```
 
 ## Read in PITS data
+
 ```{r}
 # read in data
 PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2023.csv")
@@ -38,6 +41,7 @@ PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_L
 ```
 
 ### Count unique reporters
+
 ```{r}
 PITS_2023_2025 %>% summarise(count = n_distinct(Reporter))
 
@@ -46,6 +50,7 @@ PITS_2023_2025 %>% summarise(count = n_distinct(Reporter))
 ```
 
 ## Mask Reporter IDs
+
 ```{r}
 # Generate unique alternate IDs
 # Function to generate consistent masked IDs
@@ -71,7 +76,6 @@ lookup_table_reporter <- PITS_2023_2025 %>%
 
 ```
 
-
 ```{r}
 # Turn follow-up into a binary 
 # none versus other text
@@ -79,9 +83,6 @@ PITS_2023_2025 <- PITS_2023_2025 %>%
   mutate(Followup_binary = ifelse(Followup == "NONE", 0, 1))
 
 ```
-
-
-
 
 ```{r}
 # save a copy of the data without discerning columns
@@ -91,9 +92,8 @@ PITS_2023_2025_public <-
 
 ```
 
-
-
 ## Add datetime PITS data
+
 ```{r}
 #| echo: false
 # change date 
@@ -105,6 +105,7 @@ PITS_2023_2025_public$Date2 <- as.Date(PITS_2023_2025_public$Date, format = "%m/
 The `echo: false` option disables the printing of code (only output is displayed).
 
 # Clean up the Time format in PITS
+
 ```{r}
 # Using rowwise() to parse time
 
@@ -141,14 +142,13 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 
 ```
 
-
 ```{r}
 # PITS_2023_2024_subset <- PITS_2023_2025 %>% 
 #   filter(between(Date2, as.Date('2023-11-24'), as.Date('2024-11-24')))
 ```
 
-
 ## Standardize Location format
+
 ```{r}
 # match location standard for computer use
 # location name consistency 
@@ -203,6 +203,7 @@ PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
 ```
 
 # hourly summary of PITS from Jan 2023 to March 2025
+
 ```{r}
 # group pits incidents by the hour
 
@@ -222,6 +223,11 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
   filter(!is.na(Date))
 ```
 
+
+```{r}
+# bring in the data
+PITS_2023_2025_public  <- read_csv("data/pits2023-2025-public.csv")
+```
 
 ```{r}
 # # Group by hour and count events
@@ -272,7 +278,9 @@ hourly_location_summary <- PITS_2023_2025_public %>%
 hourly_loc_sum_total <-  hourly_summary %>% 
                                     left_join(hourly_location_date_summary)
 ```
+
 # Visualize hourly data
+
 ```{r}
 # Basic interactive bar chart of hourly counts
 plot_hourly <- plot_ly(hourly_loc_sum_total,
@@ -311,6 +319,7 @@ plot_hourly
 ```
 
 # Visualize with location
+
 ```{r}
 # plot_by_location
 # Here's how to add interactivity to highlight a single location:
@@ -393,7 +402,6 @@ plot_hourly
 # # Display the plot
 # plot_by_location
 ```
-
 
 ```{r}
 # Create a plotly visualization with buttons to filter by location but no legend
@@ -531,7 +539,7 @@ for(chunk in date_chunks) {
 library(plotly)
 library(dplyr)
 
-# Prepare data (assuming hourly_loc_long already exists)
+# getting tge date tune slider but this only produced a date drop down
 # Get unique dates and locations
 dates <- sort(unique(hourly_loc_long$Date2))
 locations <- sort(unique(hourly_loc_long$Location))
@@ -680,6 +688,7 @@ filter_panel <- list(
 
 ```
 
+JavaScript to help produce a prettier image
 ```{js, echo=FALSE}
 
 var fitTheScreen = window.setInterval(function(){
@@ -694,6 +703,7 @@ var fitTheScreen = window.setInterval(function(){
 }, 1000);
 
 ```
+
 ```{r}
 # Combine filters with plot
 bscols(
@@ -702,8 +712,6 @@ bscols(
   p
 )
 ```
-
-
 
 ```{r}
 # Get unique dates and sort them
@@ -817,7 +825,6 @@ plot_by_location
 
 ```
 
-
 ```{r}
 # attempt to add the min/max date filter
 library(plotly)
@@ -825,8 +832,9 @@ library(dplyr)
 library(crosstalk)
 
 ```
+
 ## Write csv
+
 ```{r}
 write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
 ```
-
