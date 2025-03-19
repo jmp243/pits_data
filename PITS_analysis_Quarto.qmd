@@ -4,14 +4,9 @@ format: html
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
 ## Running Code
 
 ### load libraries
-
 ```{r}
 # load libraries 
 library(plotly)
@@ -223,10 +218,11 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
   filter(!is.na(Date))
 ```
 
-
+## read in preprocessed data
 ```{r}
 # bring in the data
 PITS_2023_2025_public  <- read_csv("data/pits2023-2025-public.csv")
+PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]  
 ```
 
 ```{r}
@@ -643,10 +639,10 @@ p <- p %>%
       )
     )
   )
-
-p
+# 
+# p
 ```
-
+# Crosstalk Plotly Graph
 ```{r}
 library(plotly)
 library(dplyr)
@@ -670,7 +666,11 @@ hourly_loc_long2 <- hourly_loc_long %>%
 sd <- SharedData$new(hourly_loc_long2)
 
 # Create the plotly visualization
-p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar") %>%
+p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar",  text = ~paste("Hour: ", hour_label,
+                          "<br>Location: ", Location,
+                          "<br>Count: ", Count,
+                          "<br>Date: ", Date2),
+             hoverinfo = "text") %>% 
   layout(
     title = "Events by Location and Hour",
     xaxis = list(title = "Hour of Day", tickangle = 45),
@@ -712,113 +712,208 @@ bscols(
   p
 )
 ```
+```{r}
+# sort out types of PITS
+# Extract all unique categories
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+unique_categories <- PITS_2023_2025_public %>%
+  # First convert all separators to a common one
+  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+  # Replace " or " and " and " with commas when they appear between words
+  mutate(categories = str_replace_all(categories, "\\s+or\\s+", ",")) %>%
+  mutate(categories = str_replace_all(categories, "\\s+and\\s+", ",")) %>%
+  # Split by comma
+  separate_rows(categories, sep = ",") %>%
+  # Clean up each value
+  mutate(categories = str_trim(categories)) %>%
+  # Remove standalone "or" and "and" if they still exist
+  filter(!categories %in% c("or", "and", "")) %>%
+  # Get unique values
+  distinct(categories) %>%
+  # Sort alphabetically
+  arrange(categories)
+
+print(unique_categories)
+print(paste("Number of unique categories:", nrow(unique_categories)))
+
+# Split all entries and get unique values
+unique_categories <- PITS_2023_2025_public %>%
+  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+  # Split by comma
+  separate_rows(categories, sep = ",") %>%
+  # Clean up each value
+  mutate(categories = str_trim(categories)) %>%
+  # Remove "or" and "and" if they appear as standalone words after splitting
+  mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
+  # Remove empty strings that might result from the replacements
+  filter(categories != "") %>%
+  filter(categories != "null") %>%
+  # Filter out categories containing hash symbols
+  filter(!str_detect(categories, "#")) %>%
+  # Get unique values
+  distinct(categories) %>%
+  # Sort alphabetically
+  arrange(categories)
+
+print(unique_categories)
+print(paste("Number of unique categories:", nrow(unique_categories)))
+
+
+``` 
+
+# Join column wider back into PITS dataset
+```{r}
+
+PITS_categories <- PITS_2023_2025_public %>%
+  # Create row ID for later joining
+  mutate(row_id = row_number()) %>%
+  # Process the categories column as before
+  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+  # Split by comma
+  separate_rows(categories, sep = ",") %>%
+  # Clean up each value
+  mutate(categories = str_trim(categories)) %>%
+  # Replace "or Illegal Conduct" with "Illegal Conduct" 
+  mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+  # Remove "or" and "and" if they appear as standalone words
+  mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
+  # Remove empty strings, null values, and categories with hash symbols
+  filter(categories != "") %>%
+  filter(categories != "null") %>%
+  filter(!str_detect(categories, "#"))
+
+# Now pivot wider with each category becoming a column (1 = present)
+PITS_categories_wide <- PITS_categories %>%
+  # Create value = 1 for each category present
+  mutate(value = 1) %>%
+  # Pivot to wide format
+  pivot_wider(
+    id_cols = row_id,
+    names_from = categories,
+    values_from = value,
+    values_fill = 0  # Fill missing with 0
+  )
+
+# Join back to original data frame
+PITS_result <- PITS_2023_2025_public %>%
+  mutate(row_id = row_number()) %>%
+  left_join(PITS_categories_wide, by = "row_id") %>%
+  select(-row_id)  # Remove the temporary row_id
+
+# View the result
+head(PITS_result)
+```
+
 
 ```{r}
-# Get unique dates and sort them
-dates <- sort(unique(as.Date(hourly_loc_long$Date2)))
-min_date <- min(dates)
-max_date <- max(dates)
-
-# Create dropdown buttons for locations
-locations <- sort(unique(hourly_loc_long$Location))
-buttons <- list(
-  list(
-    method = "update",
-    args = list(list(visible = rep(TRUE, length(locations))),
-                list(title = "Events by Location and Hour - All Locations")),
-    label = "All"
-  )
-)
-
-for(i in 1:length(locations)) {
-  visible <- rep(FALSE, length(locations))
-  visible[i] <- TRUE
-  
-  buttons <- c(buttons, list(
-    list(
-      method = "update",
-      args = list(list(visible = visible),
-                  list(title = paste0("Events by Location and Hour - ", locations[i]))),
-      label = locations[i]
-    )
-  ))
-}
-
-# First, create a long-format dataset with dates
-date_filtered_data <- hourly_loc_long %>%
-  group_by(Date2, hour_label, Location) %>%
-  summarize(Count = sum(Count, na.rm = TRUE), .groups = "drop")
-
-# Create base plot with date as a third variable
-plot_by_location <- plot_ly(date_filtered_data, 
-                           x = ~hour_label, 
-                           y = ~Count,
-                           color = ~Location,
-                           frame = ~Date2,  # This creates animation frames by date
-                           type = "bar") %>%
-  layout(
-    title = "Events by Location and Hour",
-    xaxis = list(title = "Hour of Day", tickangle = 45),
-    yaxis = list(title = "Number of Events"),
-    barmode = "stack",
-    hovermode = "compare",
-    showlegend = FALSE,
-    updatemenus = list(
-      # Location dropdown
-      list(
-        type = "dropdown",
-        buttons = buttons,
-        direction = "down",
-        showactive = TRUE,
-        x = 0.1,
-        y = 0.9
-      ),
-      # Animation controls
-      list(
-        type = "buttons",
-        x = 0.1,
-        y = 0.8,
-        buttons = list(
-          list(method = "animate", args = list(NULL, list(frame = list(duration = 500, redraw = TRUE), fromcurrent = TRUE)), label = "Play"),
-          list(method = "animate", args = list(NULL, list(frame = list(duration = 0, redraw = TRUE), mode = "immediate")), label = "Pause")
-        )
-      )
-    ),
-    # Add date slider
-    sliders = list(
-      list(
-        currentvalue = list(
-          prefix = "Date: ",
-          xanchor = "right"
-        ),
-        steps = lapply(unique(date_filtered_data$Date2), function(date) {
-          list(
-            method = "animate",
-            args = list(
-              list(frame = as.character(date)),
-              list(mode = "immediate", transition = list(duration = 300), frame = list(duration = 300, redraw = TRUE))
-            ),
-            label = as.character(date)
-          )
-        })
-      )
-    )
-  )
-
-# Add animation settings
-plot_by_location <- plot_by_location %>%
-  animation_opts(
-    frame = 1000,
-    transition = 500,
-    easing = "linear",
-    redraw = FALSE
-  ) %>%
-  animation_slider(
-    currentvalue = list(prefix = "Date: ", font = list(color = "black"))
-  )
-
-# Display the plot
-plot_by_location
+# # Get unique dates and sort them
+# dates <- sort(unique(as.Date(hourly_loc_long$Date2)))
+# min_date <- min(dates)
+# max_date <- max(dates)
+# 
+# # Create dropdown buttons for locations
+# locations <- sort(unique(hourly_loc_long$Location))
+# buttons <- list(
+#   list(
+#     method = "update",
+#     args = list(list(visible = rep(TRUE, length(locations))),
+#                 list(title = "Events by Location and Hour - All Locations")),
+#     label = "All"
+#   )
+# )
+# 
+# for(i in 1:length(locations)) {
+#   visible <- rep(FALSE, length(locations))
+#   visible[i] <- TRUE
+#   
+#   buttons <- c(buttons, list(
+#     list(
+#       method = "update",
+#       args = list(list(visible = visible),
+#                   list(title = paste0("Events by Location and Hour - ", locations[i]))),
+#       label = locations[i]
+#     )
+#   ))
+# }
+# 
+# # First, create a long-format dataset with dates
+# date_filtered_data <- hourly_loc_long %>%
+#   group_by(Date2, hour_label, Location) %>%
+#   summarize(Count = sum(Count, na.rm = TRUE), .groups = "drop")
+# 
+# # Create base plot with date as a third variable
+# plot_by_location <- plot_ly(date_filtered_data, 
+#                            x = ~hour_label, 
+#                            y = ~Count,
+#                            color = ~Location,
+#                            frame = ~Date2,  # This creates animation frames by date
+#                            type = "bar") %>%
+#   layout(
+#     title = "Events by Location and Hour",
+#     xaxis = list(title = "Hour of Day", tickangle = 45),
+#     yaxis = list(title = "Number of Events"),
+#     barmode = "stack",
+#     hovermode = "compare",
+#     showlegend = FALSE,
+#     updatemenus = list(
+#       # Location dropdown
+#       list(
+#         type = "dropdown",
+#         buttons = buttons,
+#         direction = "down",
+#         showactive = TRUE,
+#         x = 0.1,
+#         y = 0.9
+#       ),
+#       # Animation controls
+#       list(
+#         type = "buttons",
+#         x = 0.1,
+#         y = 0.8,
+#         buttons = list(
+#           list(method = "animate", args = list(NULL, list(frame = list(duration = 500, redraw = TRUE), fromcurrent = TRUE)), label = "Play"),
+#           list(method = "animate", args = list(NULL, list(frame = list(duration = 0, redraw = TRUE), mode = "immediate")), label = "Pause")
+#         )
+#       )
+#     ),
+#     # Add date slider
+#     sliders = list(
+#       list(
+#         currentvalue = list(
+#           prefix = "Date: ",
+#           xanchor = "right"
+#         ),
+#         steps = lapply(unique(date_filtered_data$Date2), function(date) {
+#           list(
+#             method = "animate",
+#             args = list(
+#               list(frame = as.character(date)),
+#               list(mode = "immediate", transition = list(duration = 300), frame = list(duration = 300, redraw = TRUE))
+#             ),
+#             label = as.character(date)
+#           )
+#         })
+#       )
+#     )
+#   )
+# 
+# # Add animation settings
+# plot_by_location <- plot_by_location %>%
+#   animation_opts(
+#     frame = 1000,
+#     transition = 500,
+#     easing = "linear",
+#     redraw = FALSE
+#   ) %>%
+#   animation_slider(
+#     currentvalue = list(prefix = "Date: ", font = list(color = "black"))
+#   )
+# 
+# # Display the plot
+# plot_by_location
 ```
 
 ```{r}
