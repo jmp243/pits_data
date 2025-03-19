@@ -19,6 +19,7 @@ MyPC_all <- rbind(MyPC_2023, MyPC_2024, MyPC_2025)
 ```
 
 Aggregated MyPC data
+
 ```{r}
 # drop all test cases
 MyPC_public <- MyPC_all %>% 
@@ -27,11 +28,13 @@ MyPC_public <- MyPC_all %>%
 ```
 
 Convert id into character
+
 ```{r}
 MyPC_public$`Login ID` <- as.character(MyPC_public$`Login ID`)
 ```
 
-# create a new column to parse out the date 
+# create a new column to parse out the date
+
 ```{r}
 library(lubridate)
 
@@ -50,8 +53,8 @@ MyPC_public <- MyPC_public %>%
  mutate(booking_time = format(booking_from, format = "%H:%M:%S"))
 ```
 
-
 # Rename Location and Site columns
+
 ```{r}
 as.list(unique(MyPC_public$Site))
 
@@ -62,6 +65,7 @@ MyPC_public <- MyPC_public %>%
 ```
 
 # standardize location
+
 ```{r}
 # Create a master location mapping table
 location_mapping <- data.frame(
@@ -121,9 +125,130 @@ MyPC_public <- standardize_dataset(MyPC_public, "Location")
 as.list(unique(MyPC_public$Location_Standard))
 ```
 
+```{r}
+# Open MyPC data
+MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
+MyPC_public <- MyPC_public[,-1]  
+```
+
+## generate a consistent ID
+```{r}
+generate_consistent_logins <- function(logins) {
+  # Create a unique mapping of original names to masked IDs
+  unique_names <- unique(logins)
+  masked_logins <- paste0("ID_", sprintf("%04d", seq_along(unique_names)))
+  
+  # Create a named vector for easy lookup
+  login_mapping <- setNames(masked_logins, unique_names)
+  
+  # Map the original names to their consistent masked IDs
+  return(login_mapping[logins])
+}
+
+# Generate consistent masked IDs
+MyPC_public$masked_logins <- generate_consistent_logins(MyPC_public$`Login ID`)
+
+# Create a lookup table
+lookup_table_reporter <- MyPC_public %>%
+  select(original_name = `Login ID`, masked_logins) %>%
+  distinct()
+
+```
+
+```{r}
+# remove orig login from new table
+MyPC_public <- MyPC_public %>% 
+  select(-`Login ID`)
+```
+
+```{r}
+names(MyPC_public)
+```
+
+```{r}
+
+
+```
+
+## graph with plotly
+```{r}
+# make tables similar to pits
+library(plotly)
+library(dplyr)
+library(crosstalk)
+library(lubridate)
+
+# First, prepare the data
+MyPC_public <- MyPC_public %>%
+  mutate(
+    # # Make sure booking_from is properly parsed
+    # booking_from = if(!inherits(`Booking From`, "POSIXct")) 
+    #                  as.POSIXct(`Booking From`) else `Booking From`,
+    # Extract hour for grouping
+    hour_of_day = hour(booking_from),
+    hour_label = paste0(hour_of_day, ":00")
+  )
+
+# Aggregate data by hour and location
+hourly_usage <- MyPC_public %>%
+  group_by(hour_label, Location_Standard, booking_date) %>%
+  summarize(count = n(), .groups = "drop") %>%
+  arrange(as.numeric(substr(hour_label, 1, 2)))
+
+# Create shared data object for filtering
+sd <- SharedData$new(hourly_usage)
+
+# Create the plotly visualization
+p <- plot_ly(sd, 
+             x = ~hour_label, 
+             y = ~count, 
+             color = ~Location_Standard, 
+             type = "bar",
+             hovertemplate = ~paste(
+               "Hour: ", hour_label,
+               "<br>Location: ", Location_Standard,
+               "<br>Count: ", count,
+               "<br>Date: ", format(booking_date, "%Y-%m-%d"),
+               "<extra></extra>"
+             )) %>%
+  layout(
+    title = "Computer Usage by Hour of Day",
+    xaxis = list(
+      title = "Hour of Day", 
+      tickangle = 45,
+      categoryorder = "array",
+      categoryarray = paste0(0:23, ":00")
+    ),
+    yaxis = list(title = "Number of Sessions"),
+    barmode = "stack",
+    hovermode = "compare",
+     showlegend = FALSE  # Remo
+  )
+
+# Create the filter controls
+# filters <- list(
+#   filter_select("Location_Standard", "Location", sd, ~Location_Standard, multiple = TRUE),
+#   filter_slider("booking_date", "Date Range", sd, ~booking_date, width = "100%")
+# )
+
+# Create filter panel
+filter_panel <- list(
+  filter_select("Location_Standard", "Location", sd, ~Location_Standard, multiple = TRUE),
+  filter_slider("booking_date", "Date Range", sd, ~booking_date, width = "100%"),
+  
+)
+
+
+# Combine the filters and plot
+bscols(
+  widths = c(3, 9),
+  filters,
+  p
+)
+```
 
 ### Save csv
+
 ```{r}
 write.csv(MyPC_public, "MyPC_2023-2025-public.csv")
 ```
-
