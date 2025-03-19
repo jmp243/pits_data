@@ -3,6 +3,7 @@ title: "PITS_quarto"
 format: html
 editor: visual
 ---
+last updated 3/19/2025
 
 ## Running Code
 
@@ -28,7 +29,7 @@ PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListInciden
 
 PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
 
-PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March13_2025.csv")
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March19_2025.csv")
 
 # merge the years
 PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
@@ -220,9 +221,9 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 
 ## read in preprocessed data
 ```{r}
-# bring in the data
-PITS_2023_2025_public  <- read_csv("data/pits2023-2025-public.csv")
-PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]  
+# # bring in the data
+# PITS_2023_2025_public  <- read_csv("data/pits2023-2025-public.csv")
+# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]  
 ```
 
 ```{r}
@@ -712,6 +713,7 @@ bscols(
   p
 )
 ```
+
 ```{r}
 # sort out types of PITS
 # Extract all unique categories
@@ -753,6 +755,7 @@ unique_categories <- PITS_2023_2025_public %>%
   filter(categories != "null") %>%
   # Filter out categories containing hash symbols
   filter(!str_detect(categories, "#")) %>%
+  mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
   # Get unique values
   distinct(categories) %>%
   # Sort alphabetically
@@ -761,12 +764,20 @@ unique_categories <- PITS_2023_2025_public %>%
 print(unique_categories)
 print(paste("Number of unique categories:", nrow(unique_categories)))
 
-
 ``` 
+```{r}
+# subset if categories are empty
+PITS_empty_categories <- PITS_2023_2025_public %>% 
+  # Filter for rows where Infraction Categories is empty, null, or contains #
+  filter(`Infraction Categories` == "" | 
+         `Infraction Categories` == "null" | 
+         str_detect(`Infraction Categories`, "#") |
+         is.na(`Infraction Categories`))
+```
 
 # Join column wider back into PITS dataset
 ```{r}
-
+# 
 PITS_categories <- PITS_2023_2025_public %>%
   # Create row ID for later joining
   mutate(row_id = row_number()) %>%
@@ -776,7 +787,7 @@ PITS_categories <- PITS_2023_2025_public %>%
   separate_rows(categories, sep = ",") %>%
   # Clean up each value
   mutate(categories = str_trim(categories)) %>%
-  # Replace "or Illegal Conduct" with "Illegal Conduct" 
+  # Replace "or Illegal Conduct" with "Illegal Conduct"
   mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
   # Remove "or" and "and" if they appear as standalone words
   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
@@ -785,6 +796,8 @@ PITS_categories <- PITS_2023_2025_public %>%
   filter(categories != "null") %>%
   filter(!str_detect(categories, "#"))
 
+
+  
 # Now pivot wider with each category becoming a column (1 = present)
 PITS_categories_wide <- PITS_categories %>%
   # Create value = 1 for each category present
@@ -807,113 +820,57 @@ PITS_result <- PITS_2023_2025_public %>%
 head(PITS_result)
 ```
 
-
+#finer grained categories with infraction column
 ```{r}
-# # Get unique dates and sort them
-# dates <- sort(unique(as.Date(hourly_loc_long$Date2)))
-# min_date <- min(dates)
-# max_date <- max(dates)
+# PITS_categories <- PITS_2023_2025_public %>%
+#   # Create row ID for later joining
+#   mutate(row_id = row_number()) %>%
+#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
+#   mutate(category_source = case_when(
+#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" | 
+#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+#     TRUE ~ `Infraction Categories`
+#   )) %>%
+#   # Process the categories column
+#   mutate(categories = str_replace_all(category_source, "[,~]", ",")) %>%
+#   # For Infractions column values, clean up numeric codes like 1.14
+#   mutate(categories = str_replace_all(categories, "\\s*\\d+\\.\\d+\\s*", "")) %>%
+#   # Split by comma
+#   separate_rows(categories, sep = ",") %>%
+#   # Clean up each value
+#   mutate(categories = str_trim(categories)) %>%
+#   # Replace "or Illegal Conduct" with "Illegal Conduct" 
+#   mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+#   # Remove "or" and "and" if they appear as standalone words
+#   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
+#   # Remove empty strings, null values, and categories with hash symbols
+#   filter(categories != "") %>%
+#   filter(categories != "null") %>%
+#   filter(!str_detect(categories, "#"))
 # 
-# # Create dropdown buttons for locations
-# locations <- sort(unique(hourly_loc_long$Location))
-# buttons <- list(
-#   list(
-#     method = "update",
-#     args = list(list(visible = rep(TRUE, length(locations))),
-#                 list(title = "Events by Location and Hour - All Locations")),
-#     label = "All"
-#   )
-# )
+# table(PITS_categories$categories)
 # 
-# for(i in 1:length(locations)) {
-#   visible <- rep(FALSE, length(locations))
-#   visible[i] <- TRUE
-#   
-#   buttons <- c(buttons, list(
-#     list(
-#       method = "update",
-#       args = list(list(visible = visible),
-#                   list(title = paste0("Events by Location and Hour - ", locations[i]))),
-#       label = locations[i]
-#     )
-#   ))
-# }
-# 
-# # First, create a long-format dataset with dates
-# date_filtered_data <- hourly_loc_long %>%
-#   group_by(Date2, hour_label, Location) %>%
-#   summarize(Count = sum(Count, na.rm = TRUE), .groups = "drop")
-# 
-# # Create base plot with date as a third variable
-# plot_by_location <- plot_ly(date_filtered_data, 
-#                            x = ~hour_label, 
-#                            y = ~Count,
-#                            color = ~Location,
-#                            frame = ~Date2,  # This creates animation frames by date
-#                            type = "bar") %>%
-#   layout(
-#     title = "Events by Location and Hour",
-#     xaxis = list(title = "Hour of Day", tickangle = 45),
-#     yaxis = list(title = "Number of Events"),
-#     barmode = "stack",
-#     hovermode = "compare",
-#     showlegend = FALSE,
-#     updatemenus = list(
-#       # Location dropdown
-#       list(
-#         type = "dropdown",
-#         buttons = buttons,
-#         direction = "down",
-#         showactive = TRUE,
-#         x = 0.1,
-#         y = 0.9
-#       ),
-#       # Animation controls
-#       list(
-#         type = "buttons",
-#         x = 0.1,
-#         y = 0.8,
-#         buttons = list(
-#           list(method = "animate", args = list(NULL, list(frame = list(duration = 500, redraw = TRUE), fromcurrent = TRUE)), label = "Play"),
-#           list(method = "animate", args = list(NULL, list(frame = list(duration = 0, redraw = TRUE), mode = "immediate")), label = "Pause")
-#         )
-#       )
-#     ),
-#     # Add date slider
-#     sliders = list(
-#       list(
-#         currentvalue = list(
-#           prefix = "Date: ",
-#           xanchor = "right"
-#         ),
-#         steps = lapply(unique(date_filtered_data$Date2), function(date) {
-#           list(
-#             method = "animate",
-#             args = list(
-#               list(frame = as.character(date)),
-#               list(mode = "immediate", transition = list(duration = 300), frame = list(duration = 300, redraw = TRUE))
-#             ),
-#             label = as.character(date)
-#           )
-#         })
-#       )
-#     )
+# # Now pivot wider with each category becoming a column (1 = present)
+# PITS_categories_wide <- PITS_categories %>%
+#   # Create value = 1 for each category present
+#   mutate(value = 1) %>%
+#   distinct(row_id, categories, .keep_all = TRUE) %>%
+#   # Pivot to wide format
+#   pivot_wider(
+#     id_cols = row_id,
+#     names_from = categories,
+#     values_from = value,
+#     values_fill = 0  # Fill missing with 0
 #   )
 # 
-# # Add animation settings
-# plot_by_location <- plot_by_location %>%
-#   animation_opts(
-#     frame = 1000,
-#     transition = 500,
-#     easing = "linear",
-#     redraw = FALSE
-#   ) %>%
-#   animation_slider(
-#     currentvalue = list(prefix = "Date: ", font = list(color = "black"))
-#   )
+# # Join back to original data frame
+# PITS_result <- PITS_2023_2025_public %>%
+#   mutate(row_id = row_number()) %>%
+#   left_join(PITS_categories_wide, by = "row_id") %>%
+#   select(-row_id)  # Remove the temporary row_id
 # 
-# # Display the plot
-# plot_by_location
+# # View the result
+# head(PITS_result)
 ```
 
 ```{r}
@@ -921,10 +878,7 @@ head(PITS_result)
 ```
 
 ```{r}
-# attempt to add the min/max date filter
-library(plotly)
-library(dplyr)
-library(crosstalk)
+
 
 ```
 
