@@ -674,6 +674,7 @@ PITS_empty_categories <- PITS_empty_categories %>%
 
 ```
 
+# long version of parsing empty
 ```{r}
 # # Filter for rows where Infraction Categories is empty, null, or contains #
 PITS_empty_categories <- PITS_2023_2025_public %>%
@@ -791,6 +792,12 @@ category_lookup <- PITS_empty_categories %>%
 
 ```
 
+```{r}
+# remove source category from PITS_empty to merge
+PITS_empty <- PITS_empty_categories %>% 
+  select(-category_source)
+```
+
 
 ```{r}
 # get the various values in the list
@@ -803,7 +810,11 @@ unique_counts <- PITS_empty_categories %>%
 print(unique_counts)
 
 
+
+
 ```
+
+
 ```{r}
 # consider three spaces as separators
 library(tidyverse)
@@ -975,67 +986,80 @@ for (i in seq_along(examples)) {
 ```{r}
 # sort out types of PITS
 # Extract all unique categories
-library(dplyr)
-library(tidyr)
-library(stringr)
-
-unique_categories <- PITS_2023_2025_public %>%
-  # First convert all separators to a common one
-  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
-  # Replace " or " and " and " with commas when they appear between words
-  mutate(categories = str_replace_all(categories, "\\s+or\\s+", ",")) %>%
-  mutate(categories = str_replace_all(categories, "\\s+and\\s+", ",")) %>%
-  # Split by comma
-  separate_rows(categories, sep = ",") %>%
-  # Clean up each value
-  mutate(categories = str_trim(categories)) %>%
-  # Remove standalone "or" and "and" if they still exist
-  filter(!categories %in% c("or", "and", "")) %>%
-  # Get unique values
-  distinct(categories) %>%
-  # Sort alphabetically
-  arrange(categories)
-
-
-# Split all entries and get unique values
-unique_categories <- PITS_2023_2025_public %>%
-  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
-  # Split by comma
-  separate_rows(categories, sep = ",") %>%
-  # Clean up each value
-  mutate(categories = str_trim(categories)) %>%
-  # Remove "or" and "and" if they appear as standalone words after splitting
-  mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
-  # # Remove empty strings that might result from the replacements
-  # filter(categories != "") %>%
-  # filter(categories != "null") %>%
-  # # Filter out categories containing hash symbols
-  # filter(!str_detect(categories, "#")) %>%
-  mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
-  # Get unique values
-  distinct(categories) %>%
-  # Sort alphabetically
-  arrange(categories)
-
-print(unique_categories)
-print(paste("Number of unique categories:", nrow(unique_categories)))
+# library(dplyr)
+# library(tidyr)
+# library(stringr)
+# 
+# unique_categories <- PITS_2023_2025_public %>%
+#   # First convert all separators to a common one
+#   mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+#   # Replace " or " and " and " with commas when they appear between words
+#   mutate(categories = str_replace_all(categories, "\\s+or\\s+", ",")) %>%
+#   mutate(categories = str_replace_all(categories, "\\s+and\\s+", ",")) %>%
+#   mutate(categories = case_when(
+#     categories == "null" ~ "Other",
+#     categories == "" ~ "Other",
+#     str_detect(categories, "^#+$") ~ "Other",
+#     TRUE ~ categories
+#   )) %>%
+#   # Split by comma
+#   separate_rows(categories, sep = ",") %>%
+#   # Clean up each value
+#   mutate(categories = str_trim(categories)) %>%
+#   # Remove standalone "or" and "and" if they still exist
+#   filter(!categories %in% c("or", "and", "")) %>%
+#   # Get unique values
+#   distinct(categories) %>%
+#   # Sort alphabetically
+#   arrange(categories)
+# 
+# 
+# # Split all entries and get unique values
+# unique_categories <- PITS_2023_2025_public %>%
+#   mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+#   # Split by comma
+#   separate_rows(categories, sep = ",") %>%
+#   # Clean up each value
+#   mutate(categories = str_trim(categories)) %>%
+#   # Remove "or" and "and" if they appear as standalone words after splitting
+#   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
+#   # # Remove empty strings that might result from the replacements
+#   # filter(categories != "") %>%
+#   # filter(categories != "null") %>%
+#   # # Filter out categories containing hash symbols
+#   # filter(!str_detect(categories, "#")) %>%
+#   mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+#   # Get unique values
+#   distinct(categories) %>%
+#   # Sort alphabetically
+#   arrange(categories)
+# 
+# print(unique_categories)
+# print(paste("Number of unique categories:", nrow(unique_categories)))
 
 ``` 
 
-# Join column wider back into PITS dataset
+# less aggressive parsing that works better
 ```{r}
 # 
 PITS_categories <- PITS_2023_2025_public %>%
   # Create row ID for later joining
   mutate(row_id = row_number()) %>%
   # Process the categories column as before
-  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+  # mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
   # Split by comma
-  separate_rows(categories, sep = ",") %>%
+  # separate_rows(categories, sep = ",") %>%
   # Clean up each value
-  mutate(categories = str_trim(categories)) %>%
+  mutate(categories = str_trim(`Infraction Categories`)) %>%
+  mutate(categories = case_when(
+    categories == "null" ~ "Other",
+    categories == "null~null" ~ "Other",
+    categories == "" ~ "Other",
+    str_detect(categories, "^#+$") ~ "Other",
+    TRUE ~ categories
+  )) %>%
   # Replace "or Illegal Conduct" with "Illegal Conduct"
-  mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+  # mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
   # Remove "or" and "and" if they appear as standalone words
   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
   # Remove empty strings, null values, and categories with hash symbols
@@ -1043,9 +1067,32 @@ PITS_categories <- PITS_2023_2025_public %>%
   filter(categories != "null") %>%
   filter(!str_detect(categories, "#"))
 
+```
 
-  
-# Now pivot wider with each category becoming a column (1 = present)
+```{r}
+# pits summary
+PITS_summary <- PITS_categories %>%
+  group_by(categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(categories, desc(count))
+
+print(PITS_summary)
+```
+
+# merge datasets
+```{r}
+# merge datasets
+PITS_categories <- rbind(PITS_empty, PITS_categories)
+```
+
+```{r}
+# count the pits categories
+
+```
+
+
+```{r}
+  # Now pivot wider with each category becoming a column (1 = present)
 PITS_categories_wide <- PITS_categories %>%
   # Create value = 1 for each category present
   mutate(value = 1) %>%
@@ -1066,6 +1113,7 @@ PITS_result <- PITS_2023_2025_public %>%
 # View the result
 head(PITS_result)
 ```
+
 
 #finer grained categories with infraction column
 ```{r}
