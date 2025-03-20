@@ -139,8 +139,7 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 ```
 
 ```{r}
-# PITS_2023_2024_subset <- PITS_2023_2025 %>% 
-#   filter(between(Date2, as.Date('2023-11-24'), as.Date('2024-11-24')))
+
 ```
 
 ## Standardize Location format
@@ -205,7 +204,8 @@ PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
 
 # Assuming your data is in a data frame called 'df' with a column 'timestamp'
 # Group by hour
-PITS_2023_2025_public$hour_group <- floor_date(PITS_2023_2025_public$time_parsed, unit = "hour")
+PITS_2023_2025_public$hour_group <- floor_date(PITS_2023_2025_public$time_parsed, 
+                                               unit = "hour")
 
 # For visualization/labeling, you can format the hour
 PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00-%H:59")
@@ -318,86 +318,7 @@ plot_hourly
 # Visualize with location
 
 ```{r}
-# plot_by_location
-# Here's how to add interactivity to highlight a single location:
-# rCopy
-# Create a plotly visualization with buttons to filter by location
-# locations <- unique(hourly_loc_long$Location)
-# 
-# # Create a list of buttons, one for each location plus "All"
-# buttons <- list(
-#   list(
-#     method = "update",
-#     args = list(list(visible = rep(TRUE, length(locations))),
-#                 list(title = "Events by Location and Hour - All Locations")),
-#     label = "All"
-#   )
-# )
-# 
-# # Add a button for each location
-# for(i in 1:length(locations)) {
-#   visible <- rep(FALSE, length(locations))
-#   visible[i] <- TRUE
-#   
-#   buttons <- c(buttons, list(
-#     list(
-#       method = "update",
-#       args = list(list(visible = visible),
-#                   list(title = paste0("Events by Location and Hour - ", locations[i]))),
-#       label = locations[i]
-#     )
-#   ))
-# }
-# 
-# # Create the base plot
-# plot_by_location <- plot_ly()
-# 
-# # Add each location as a separate trace
-# for(i in 1:length(locations)) {
-#   loc_data <- filter(hourly_loc_long, Location == locations[i])
-#   
-#   plot_by_location <- plot_by_location %>%
-#     add_trace(
-#       data = loc_data,
-#       x = ~hour_label,
-#       y = ~Count,
-#       type = "bar",
-#       name = locations[i],
-#       marker = list(color = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))[i])
-#     )
-# }
 
-# # Add the buttons and layout
-# plot_by_location <- plot_by_location %>%
-#   layout(
-#     title = "Events by Location and Hour",
-#     xaxis = list(title = "Hour of Day", tickangle = 45),
-#     yaxis = list(title = "Number of Events"),
-#     barmode = "stack",
-#     hovermode = "compare",
-#     updatemenus = list(
-#       list(
-#         type = "dropdown",
-#         buttons = buttons,
-#         direction = "down",
-#         showactive = TRUE,
-#         x = 1.1,
-#         y = 0.5
-#       )
-#     )
-#   )
-# 
-# # Add double-click functionality for highlighting
-# plot_by_location <- plot_by_location %>%
-#   layout(
-#     legend = list(
-#       itemclick = "toggleothers",
-#       itemdoubleclick = "toggle"
-#     )
-#   )
-# 
-# # Display the plot
-# plot_by_location
 ```
 
 ```{r}
@@ -502,7 +423,6 @@ hourly_location_summary <- PITS_2023_2025_public %>%
 
 ```{r}
 # Process by date chunks
-library(dplyr)
 
 # Get unique dates
 unique_dates <- unique(PITS_2023_2025_public$Date2)
@@ -533,8 +453,7 @@ for(chunk in date_chunks) {
 ```
 
 ```{r}
-library(plotly)
-library(dplyr)
+
 
 # getting tge date tune slider but this only produced a date drop down
 # Get unique dates and locations
@@ -643,7 +562,8 @@ p <- p %>%
 # 
 # p
 ```
-# Crosstalk Plotly Graph
+
+# Crosstalk Plotly Graph by location and hour
 ```{r}
 library(plotly)
 library(dplyr)
@@ -715,6 +635,239 @@ bscols(
 ```
 
 ```{r}
+
+PITS_categories <- PITS_2023_2025_public %>%
+  # Create row ID for later joining
+  mutate(row_id = row_number()) %>%
+  # Create a new column that takes values from Infractions when Infraction Categories is problematic
+  mutate(category_source = case_when(
+    is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+    str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+    TRUE ~ `Infraction Categories`
+  ))
+```
+
+# parse empty categories
+```{r}
+# Filter for rows where Infraction Categories is empty, null, or contains #
+PITS_empty_categories <- PITS_2023_2025_public %>% 
+  filter(`Infraction Categories` == "" | 
+         `Infraction Categories` == "null" | 
+         str_detect(`Infraction Categories`, "#") |
+         is.na(`Infraction Categories`))
+
+PITS_empty_categories <- PITS_empty_categories %>%
+  # Create row ID for later joining
+  mutate(row_id = row_number()) %>%
+  # Create a new column that takes values from Infractions when Infraction Categories is problematic
+  mutate(category_source = case_when(
+    is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+    str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+    TRUE ~ `Infraction Categories`
+  )) %>%
+  # Simply rename null and hash values to "Other" in the category_source column
+  mutate(category_source = case_when(
+    category_source == "null" ~ "Other",
+    str_detect(category_source, "^#+$") ~ "Other",
+    TRUE ~ category_source
+  ))
+
+# # Filter for rows where Infraction Categories is empty, null, or contains #
+# PITS_empty_categories <- PITS_2023_2025_public %>% 
+#   filter(`Infraction Categories` == "" | 
+#          `Infraction Categories` == "null" | 
+#          str_detect(`Infraction Categories`, "#") |
+#          is.na(`Infraction Categories`))
+# 
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   # Create row ID for later joining
+#   mutate(row_id = row_number()) %>%
+#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
+#   mutate(category_source = case_when(
+#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+#     TRUE ~ `Infraction Categories`
+#   )) 
+# # %>%
+#   # # Process the categories column
+#   # mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
+#   # # Split by comma and tilde
+#   # separate_rows(categories, sep = "[,~]") %>% 
+#   # # Clean up each value
+#   # mutate(categories = str_trim(categories)) %>%
+#   # # Replace null values and hash-only strings with "Other"
+#   mutate(categories = case_when(
+#     categories == "null" ~ "Other",
+#     categories == "" ~ "Other",
+#     str_detect(categories, "^#+$") ~ "Other",
+#     TRUE ~ categories
+#   )) %>%
+#   # Remove numeric identifiers (like 1.1.7.3)
+#   mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "")) %>%
+#   # Filter out any remaining empty values after processing
+#   filter(categories != "")
+
+# To join this back to the original dataframe
+# # Create a lookup table with the processed categories
+# category_lookup <- PITS_empty_categories %>%
+#   select(row_id, categories) %>%
+#   group_by(row_id) %>%
+#   summarize(clean_categories = paste(categories, collapse = ", "))
+
+# # Join back to the original filtered dataframe
+# PITS_fixed_categories <- PITS_empty_categories %>%
+#   select(-categories) %>%
+#   distinct(row_id, .keep_all = TRUE) %>%
+#   left_join(category_lookup, by = "row_id") %>%
+#   select(-row_id) %>%  # Remove the temporary row_id
+#   # Replace the original Infraction Categories with the cleaned version
+#   mutate(`Infraction Categories` = clean_categories)
+
+# # To update the main dataframe
+# PITS_2023_2025_public_updated <- PITS_2023_2025_public %>%
+#   # Mark rows that need updating
+#   mutate(needs_update = `Infraction Categories` == "" | 
+#                         `Infraction Categories` == "null" | 
+#                         str_detect(`Infraction Categories`, "#") |
+#                         is.na(`Infraction Categories`)) %>%
+#   # Remove the rows that will be replaced
+#   filter(!needs_update) %>%
+#   # Remove the temporary column
+#   select(-needs_update) %>%
+#   # Bind with the fixed rows
+#   bind_rows(PITS_fixed_categories)
+```
+
+```{r}
+# get the various values in the list
+```
+
+
+```{r}
+# from pits Empty categories create a way to clean up the data
+# subset if categories are empty
+# this code parses why too much stuff
+# 
+# PITS_empty_categories <- PITS_2023_2025_public %>% 
+#   # Filter for rows where Infraction Categories is empty, null, or contains #
+#   filter(`Infraction Categories` == "" | 
+#          `Infraction Categories` == "null" | 
+#          str_detect(`Infraction Categories`, "#") |
+#          is.na(`Infraction Categories`))
+# 
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   # Create row ID for later joining
+#   mutate(row_id = row_number()) %>%
+#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
+#   mutate(category_source = case_when(
+#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+#     TRUE ~ `Infraction Categories`
+#   )) %>%
+#   
+#   # Process the categories column
+#   mutate(categories = str_replace_all(category_source, "[~,]", ",")) %>%
+#   # # For Infractions column values, clean up numeric codes like 1.14
+#   mutate(categories = str_replace_all(categories, "\\s*\\d+\\.\\d+\\s*", "")) %>%
+#   # Split by comma
+#   # separate_rows(categories, sep = ",") %>% 
+#   # Clean up each value
+#   mutate(categories = str_trim(categories)) %>% 
+#   # Replace "or Illegal Conduct" with "Illegal Conduct"
+#   # mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+#   # # Remove "or" and "and" if they appear as standalone words
+#   mutate(categories = str_replace(categories, "^(or|and)$", ""))
+#   # Remove empty strings, null values, and categories with hash symbols
+#   # filter(categories != "") %>%
+#   # filter(categories != "null") %>%
+#   # filter(!str_detect(categories, "#"))
+
+
+```
+
+# function to parse infractions
+```{r}
+# Function to parse infraction string into clean categories
+parse_infractions <- function(infraction_string) {
+  # Handle null or hash-only values first
+  if (is.null(infraction_string) || is.na(infraction_string) || 
+      infraction_string == "null" || grepl("^#+$", infraction_string)) {
+    return("Other")
+  }
+  
+  # Step 1: Replace ~ with a special delimiter to handle the major category breaks
+  infraction_string <- gsub("~", " ||| ", infraction_string)
+  
+  # Step 2: Split by number patterns followed by spaces
+  # This regular expression matches patterns like "1.1.7.3 " or "2.1 "
+  categories <- unlist(strsplit(infraction_string, "\\s+\\d+(\\.\\d+)*\\s+"))
+  
+  # Step 3: Clean up the categories
+  categories <- sapply(categories, function(cat) {
+    # Trim whitespace
+    cat <- trimws(cat)
+    
+    # Replace any categories that are "null" or just hash marks with "Other"
+    if (cat == "null" || grepl("^#+$", cat)) {
+      return("Other")
+    }
+    
+    # Handle the special delimiter we added
+    if(grepl(" \\|\\|\\| ", cat)) {
+      parts <- unlist(strsplit(cat, " \\|\\|\\| "))
+      # Check each part for null or hash marks
+      parts <- sapply(parts, function(p) {
+        if (trimws(p) == "null" || grepl("^#+$", trimws(p))) {
+          return("Other")
+        } else {
+          return(p)
+        }
+      })
+      return(parts)
+    }
+    
+    return(cat)
+  })
+  
+  # Flatten the list
+  categories <- unlist(categories)
+  
+  # Step 4: Remove any empty categories and trim whitespace again
+  categories <- categories[categories != ""]
+  categories <- trimws(categories)
+  
+  # Step 5: Handle any remaining numeric prefixes at the beginning of categories
+  categories <- gsub("^\\d+(\\.\\d+)*\\s+", "", categories)
+  
+  return(categories)
+}
+
+# Example usage with various inputs
+examples <- list(
+  "Dangerous, Threatening, or Illegal Conduct    1.1.7.3 Harassment: Profane, offensive, abusive language    1.1.7.2 Harassment: Conduct, stares, or gestures causing fear of safety, distress, alarm, harassment",
+  "null",
+  "##############",
+  "Disruptive behavior~null~Called 911 for medical"
+)
+
+# Parse and display results for each example
+for (i in seq_along(examples)) {
+  cat("Example", i, ":", "\n")
+  print(parse_infractions(examples[[i]]))
+  cat("\n")
+}
+
+```
+
+
+```{r}
+# #example with parsed categories
+# PITS_empty_categories <- parse_infractions(PITS_empty_categories$category_source)
+
+```
+
+
+```{r}
 # sort out types of PITS
 # Extract all unique categories
 library(dplyr)
@@ -738,8 +891,6 @@ unique_categories <- PITS_2023_2025_public %>%
   # Sort alphabetically
   arrange(categories)
 
-print(unique_categories)
-print(paste("Number of unique categories:", nrow(unique_categories)))
 
 # Split all entries and get unique values
 unique_categories <- PITS_2023_2025_public %>%
@@ -750,11 +901,11 @@ unique_categories <- PITS_2023_2025_public %>%
   mutate(categories = str_trim(categories)) %>%
   # Remove "or" and "and" if they appear as standalone words after splitting
   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
-  # Remove empty strings that might result from the replacements
-  filter(categories != "") %>%
-  filter(categories != "null") %>%
-  # Filter out categories containing hash symbols
-  filter(!str_detect(categories, "#")) %>%
+  # # Remove empty strings that might result from the replacements
+  # filter(categories != "") %>%
+  # filter(categories != "null") %>%
+  # # Filter out categories containing hash symbols
+  # filter(!str_detect(categories, "#")) %>%
   mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
   # Get unique values
   distinct(categories) %>%
@@ -765,15 +916,6 @@ print(unique_categories)
 print(paste("Number of unique categories:", nrow(unique_categories)))
 
 ``` 
-```{r}
-# subset if categories are empty
-PITS_empty_categories <- PITS_2023_2025_public %>% 
-  # Filter for rows where Infraction Categories is empty, null, or contains #
-  filter(`Infraction Categories` == "" | 
-         `Infraction Categories` == "null" | 
-         str_detect(`Infraction Categories`, "#") |
-         is.na(`Infraction Categories`))
-```
 
 # Join column wider back into PITS dataset
 ```{r}
@@ -822,32 +964,7 @@ head(PITS_result)
 
 #finer grained categories with infraction column
 ```{r}
-# PITS_categories <- PITS_2023_2025_public %>%
-#   # Create row ID for later joining
-#   mutate(row_id = row_number()) %>%
-#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
-#   mutate(category_source = case_when(
-#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" | 
-#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
-#     TRUE ~ `Infraction Categories`
-#   )) %>%
-#   # Process the categories column
-#   mutate(categories = str_replace_all(category_source, "[,~]", ",")) %>%
-#   # For Infractions column values, clean up numeric codes like 1.14
-#   mutate(categories = str_replace_all(categories, "\\s*\\d+\\.\\d+\\s*", "")) %>%
-#   # Split by comma
-#   separate_rows(categories, sep = ",") %>%
-#   # Clean up each value
-#   mutate(categories = str_trim(categories)) %>%
-#   # Replace "or Illegal Conduct" with "Illegal Conduct" 
-#   mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
-#   # Remove "or" and "and" if they appear as standalone words
-#   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
-#   # Remove empty strings, null values, and categories with hash symbols
-#   filter(categories != "") %>%
-#   filter(categories != "null") %>%
-#   filter(!str_detect(categories, "#"))
-# 
+
 # table(PITS_categories$categories)
 # 
 # # Now pivot wider with each category becoming a column (1 = present)
