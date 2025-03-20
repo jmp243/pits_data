@@ -672,27 +672,79 @@ PITS_empty_categories <- PITS_empty_categories %>%
     TRUE ~ category_source
   ))
 
+```
+
+```{r}
 # # Filter for rows where Infraction Categories is empty, null, or contains #
-# PITS_empty_categories <- PITS_2023_2025_public %>% 
-#   filter(`Infraction Categories` == "" | 
-#          `Infraction Categories` == "null" | 
-#          str_detect(`Infraction Categories`, "#") |
-#          is.na(`Infraction Categories`))
-# 
-# PITS_empty_categories <- PITS_empty_categories %>%
-#   # Create row ID for later joining
-#   mutate(row_id = row_number()) %>%
-#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
-#   mutate(category_source = case_when(
-#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
-#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
-#     TRUE ~ `Infraction Categories`
-#   )) 
+PITS_empty_categories <- PITS_2023_2025_public %>%
+  filter(`Infraction Categories` == "" |
+         `Infraction Categories` == "null" |
+         str_detect(`Infraction Categories`, "#") |
+         is.na(`Infraction Categories`))
+
+#
+PITS_empty_categories <- PITS_empty_categories %>%
+  # Create row ID for later joining
+  mutate(row_id = row_number()) %>%
+  # Create a new column that takes values from Infractions when Infraction Categories is problematic
+  mutate(category_source = case_when(
+    is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+    str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+    TRUE ~ `Infraction Categories`
+  )) %>%
+  # # Process the categories column
+  mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
+  # # Split by comma and tilde
+  # separate_rows(categories, sep = "[,~]") %>%
+  # # Clean up each value
+  # mutate(categories = str_trim(categories)) %>%
+  # # Replace null values and hash-only strings with "Other"
+  mutate(categories = case_when(
+    categories == "null" ~ "Other",
+    categories == "" ~ "Other",
+    str_detect(categories, "^#+$") ~ "Other",
+    TRUE ~ categories
+  )) %>%
+  # Remove numeric identifiers (like 1.1.7.3)
+  mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+  # Filter out any remaining empty values after processing
+  filter(categories != "")
+
+# To join this back to the original dataframe
+# # Create a lookup table with the processed categories
+category_lookup <- PITS_empty_categories %>%
+  select(row_id, categories) %>%
+  group_by(row_id) %>%
+  summarize(clean_categories = paste(categories, collapse = ", "))
+
+# # Join back to the original filtered dataframe
+# PITS_fixed_categories <- PITS_empty_categories %>%
+#   select(-categories) %>%
+#   distinct(row_id, .keep_all = TRUE) %>%
+#   left_join(category_lookup, by = "row_id") %>%
+#   select(-row_id) %>%  # Remove the temporary row_id
+#   # Replace the original Infraction Categories with the cleaned version
+#   mutate(`Infraction Categories` = clean_categories)
+
+# # To update the main dataframe
+# PITS_2023_2025_public_updated <- PITS_2023_2025_public %>%
+#   # Mark rows that need updating
+#   mutate(needs_update = `Infraction Categories` == "" |
+#                         `Infraction Categories` == "null" |
+#                         str_detect(`Infraction Categories`, "#") |
+#                         is.na(`Infraction Categories`)) %>%
+#   # Remove the rows that will be replaced
+#   filter(!needs_update) %>%
+#   # Remove the temporary column
+#   select(-needs_update) %>%
+#   # Bind with the fixed rows
+#   bind_rows(PITS_fixed_categories)
+
 # # %>%
 #   # # Process the categories column
 #   # mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
 #   # # Split by comma and tilde
-#   # separate_rows(categories, sep = "[,~]") %>% 
+#   # separate_rows(categories, sep = "[,~]") %>%
 #   # # Clean up each value
 #   # mutate(categories = str_trim(categories)) %>%
 #   # # Replace null values and hash-only strings with "Other"
@@ -726,8 +778,8 @@ PITS_empty_categories <- PITS_empty_categories %>%
 # # To update the main dataframe
 # PITS_2023_2025_public_updated <- PITS_2023_2025_public %>%
 #   # Mark rows that need updating
-#   mutate(needs_update = `Infraction Categories` == "" | 
-#                         `Infraction Categories` == "null" | 
+#   mutate(needs_update = `Infraction Categories` == "" |
+#                         `Infraction Categories` == "null" |
 #                         str_detect(`Infraction Categories`, "#") |
 #                         is.na(`Infraction Categories`)) %>%
 #   # Remove the rows that will be replaced
@@ -736,10 +788,63 @@ PITS_empty_categories <- PITS_empty_categories %>%
 #   select(-needs_update) %>%
 #   # Bind with the fixed rows
 #   bind_rows(PITS_fixed_categories)
+
 ```
+
 
 ```{r}
 # get the various values in the list
+# Count and display unique values in category_source
+unique_counts <- PITS_empty_categories %>%
+  count(category_source, sort = TRUE) %>%
+  rename(count = n)
+
+# Display the results
+print(unique_counts)
+
+
+```
+```{r}
+# consider three spaces as separators
+library(tidyverse)
+# 
+# # Sample data
+# PITS_empty_categories_cleaned <- data.frame(text_column = c(
+#   "Medical 911    Called 911 for medical",
+#   "Dangerous, Threatening, or Illegal Conduct    1.1.8 Illegal drugs or alcohol: possessing, selling, or using~Disruptive Personal Behavior    2.4 Sleeping~Medical 911    Called 911 for medical",
+#   "Disruptive Personal Behavior    2.4 Sleeping~Medical 911",
+#   "null    1.1.6 Disorderly conduct, fighting, violence, threatening, intimidating"
+# ))
+
+clean_text <- function(text) {
+  text %>%
+    str_replace_all("\\s{2,}", "|") %>%  # Replace multiple spaces with "|"
+    str_remove_all("(?<!\\d)\\d+(\\.\\d+)+") %>%  # Remove numeric codes like 1.1.4 but keep 911
+    str_replace_all("\\|+", "|") %>%  # Remove extra delimiters
+    str_remove_all("^\\||\\|$")  # Remove leading/trailing separators
+}
+
+PITS_empty_categories$categories <- sapply(PITS_empty_categories$category_source, clean_text)
+
+```
+
+# parsing and pivoting wider for empty categories
+```{r}
+# Function to clean text
+clean_text <- function(text) {
+  text %>%
+    str_replace_all("\\s{2,}", "|") %>%  # Replace multiple spaces with "|"
+    str_remove_all("(?<!\\d)\\d+(\\.\\d+)?(?!\\d)") %>%  # Remove numeric codes except 911
+    str_replace_all("\\|+", "|") %>%  # Remove extra delimiters
+    str_remove_all("^\\||\\|$")  # Remove leading/trailing separators
+}
+
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   mutate(cleaned_text = sapply(category_source, clean_text)) %>%
+#   separate_rows(cleaned_text, sep = "~") %>%  # Split into multiple rows
+#   mutate(value = 1) %>%  # Assign a binary indicator
+#   pivot_wider(names_from = cleaned_text, values_from = value, values_fill = 0)  # Pivot wider
+
 ```
 
 
