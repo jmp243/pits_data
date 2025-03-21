@@ -198,7 +198,6 @@ PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
 ```
 
 # hourly summary of PITS from Jan 2023 to March 2025
-
 ```{r}
 # group pits incidents by the hour
 
@@ -225,7 +224,7 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 # PITS_2023_2025_public  <- read_csv("data/pits2023-2025-public.csv")
 # PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]  
 ```
-
+# Group by hour and count events
 ```{r}
 # # Group by hour and count events
 hourly_summary <- PITS_2023_2025_public %>%
@@ -277,7 +276,6 @@ hourly_loc_sum_total <-  hourly_summary %>%
 ```
 
 # Visualize hourly data
-
 ```{r}
 # Basic interactive bar chart of hourly counts
 plot_hourly <- plot_ly(hourly_loc_sum_total,
@@ -316,11 +314,6 @@ plot_hourly
 ```
 
 # Visualize with location
-
-```{r}
-
-```
-
 ```{r}
 # Create a plotly visualization with buttons to filter by location but no legend
 locations <- sort(unique(hourly_loc_long$Location))  # Sort locations alphabetically
@@ -405,6 +398,7 @@ library(usethis)
 usethis::edit_r_environ()
 ```
 
+## hourly location summary
 ```{r}
 # More efficient approach
 hourly_location_summary <- PITS_2023_2025_public %>%
@@ -421,8 +415,10 @@ hourly_location_summary <- PITS_2023_2025_public %>%
   )
 ```
 
-```{r}
+
 # Process by date chunks
+
+```{r}
 
 # Get unique dates
 unique_dates <- unique(PITS_2023_2025_public$Date2)
@@ -452,9 +448,8 @@ for(chunk in date_chunks) {
 
 ```
 
+## adding a data slider to the graph
 ```{r}
-
-
 # getting tge date tune slider but this only produced a date drop down
 # Get unique dates and locations
 dates <- sort(unique(hourly_loc_long$Date2))
@@ -609,7 +604,7 @@ filter_panel <- list(
 
 ```
 
-JavaScript to help produce a prettier image
+## JavaScript to help produce a prettier image
 ```{js, echo=FALSE}
 
 var fitTheScreen = window.setInterval(function(){
@@ -636,15 +631,114 @@ bscols(
 
 ```{r}
 
+# PITS_categories <- PITS_2023_2025_public %>%
+#   # Create row ID for later joining
+#   mutate(row_id = row_number()) %>%
+#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
+#   mutate(category_source = case_when(
+#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+#     TRUE ~ `Infraction Categories`
+#   ))
+```
+
+# less aggressive parsing that works better
+```{r}
+# 
 PITS_categories <- PITS_2023_2025_public %>%
   # Create row ID for later joining
   mutate(row_id = row_number()) %>%
-  # Create a new column that takes values from Infractions when Infraction Categories is problematic
-  mutate(category_source = case_when(
-    is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
-    str_detect(`Infraction Categories`, "#") ~ `Infractions`,
-    TRUE ~ `Infraction Categories`
-  ))
+  # Process the categories column as before
+  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+  # Split by comma
+  # separate_rows(categories, sep = ",") %>%
+  # Clean up each value
+  # mutate(categories = str_trim(`Infraction Categories`)) %>%
+  mutate(categories = str_replace_all(categories, "[~,]", ",")) %>%
+  mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+
+  mutate(categories = case_when(
+    categories == "null" ~ "Other",
+    categories == "null,null" ~ "Other",
+    categories == "null~null" ~ "Other",
+    categories == "" ~ "Other",
+    str_detect(categories, "^#+$") ~ "Other",
+    TRUE ~ categories
+  )) %>%
+  # Replace "or Illegal Conduct" with "Illegal Conduct"
+  # mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+  # Remove "or" and "and" if they appear as standalone words
+  # mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
+  # Remove empty strings, null values, and categories with hash symbols
+  filter(categories != "") %>%
+  filter(categories != "null") %>%
+  filter(!str_detect(categories, "#"))
+
+```
+
+
+## attempt to parse categories with comma separator
+```{r}
+# Function to properly parse categories with comma handling
+parse_categories <- function(categories_string) {
+  if (is.na(categories_string) || categories_string == "") {
+    return(character(0))
+  }
+  
+  # Replace commas followed by spaces with a temporary delimiter
+  # This preserves phrases like "Dangerous, Threatening, or Illegal Conduct"
+  temp_string <- gsub(", ", "<<COMMA_SPACE>>", categories_string)
+  
+  # Split by remaining commas (those without spaces after them)
+  split_categories <- strsplit(temp_string, ",")[[1]]
+  
+  # Restore the original comma-space combinations
+  result <- gsub("<<COMMA_SPACE>>", ", ", split_categories)
+  
+  # Trim any whitespace
+  result <- trimws(result)
+  
+  return(result)
+}
+
+# Example usage
+example_categories <- c(
+  "Dangerous, Threatening, or Illegal Conduct,Disruptive Personal Behavior,Use and preservation of library materials and property",
+  "Children in the Library,Incident Impact Level - Staff Traumatic Stress",
+  "Dangerous, Threatening, or Illegal Conduct,Disruptive,Personal Behavior",
+  NA,
+  ""
+)
+
+# Apply the function to each example
+results <- lapply(example_categories, parse_categories)
+
+# Display the results
+for (i in seq_along(example_categories)) {
+  if (!is.na(example_categories[i]) && example_categories[i] != "") {
+    cat("Original:", example_categories[i], "\n")
+    cat("Parsed:", paste(results[[i]], collapse = " | "), "\n\n")
+  } else {
+    cat("Original:", example_categories[i], "(empty or NA)\n")
+    cat("Parsed:", length(results[[i]]), "items\n\n")
+  }
+}
+
+# To use with a dataframe:
+PITS_categories2 <- PITS_categories %>%
+  mutate(parsed_categories = lapply(categories, parse_categories)) %>%
+  unnest(parsed_categories)
+```
+
+
+```{r}
+# pits summary
+PITS_summary <- PITS_categories2 %>%
+  group_by(parsed_categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(parsed_categories, desc(count))
+
+print(PITS_summary)
 ```
 
 # parse empty categories
@@ -693,8 +787,6 @@ PITS_empty_categories <- PITS_empty_categories %>%
     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
     TRUE ~ `Infraction Categories`
   )) %>%
-  # # Process the categories column
-  mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
   # # Split by comma and tilde
   # separate_rows(categories, sep = "[,~]") %>%
   # # Clean up each value
@@ -707,6 +799,8 @@ PITS_empty_categories <- PITS_empty_categories %>%
     TRUE ~ categories
   )) %>%
   # Remove numeric identifiers (like 1.1.7.3)
+  # # Process the categories column
+  mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
   mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
   # Filter out any remaining empty values after processing
   filter(categories != "")
@@ -792,13 +886,13 @@ category_lookup <- PITS_empty_categories %>%
 
 ```
 
+### remove source category from PITS_empty to merge
 ```{r}
-# remove source category from PITS_empty to merge
 PITS_empty <- PITS_empty_categories %>% 
   select(-category_source)
 ```
 
-
+## unique counts of empty category
 ```{r}
 # get the various values in the list
 # Count and display unique values in category_source
@@ -810,11 +904,9 @@ unique_counts <- PITS_empty_categories %>%
 print(unique_counts)
 
 
-
-
 ```
 
-
+### consider three spaces as separators
 ```{r}
 # consider three spaces as separators
 library(tidyverse)
@@ -1039,45 +1131,12 @@ for (i in seq_along(examples)) {
 
 ``` 
 
-# less aggressive parsing that works better
-```{r}
-# 
-PITS_categories <- PITS_2023_2025_public %>%
-  # Create row ID for later joining
-  mutate(row_id = row_number()) %>%
-  # Process the categories column as before
-  # mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
-  # Split by comma
-  # separate_rows(categories, sep = ",") %>%
-  # Clean up each value
-  mutate(categories = str_trim(`Infraction Categories`)) %>%
-  mutate(categories = case_when(
-    categories == "null" ~ "Other",
-    categories == "null~null" ~ "Other",
-    categories == "" ~ "Other",
-    str_detect(categories, "^#+$") ~ "Other",
-    TRUE ~ categories
-  )) %>%
-  # Replace "or Illegal Conduct" with "Illegal Conduct"
-  # mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
-  # Remove "or" and "and" if they appear as standalone words
-  mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
-  # Remove empty strings, null values, and categories with hash symbols
-  filter(categories != "") %>%
-  filter(categories != "null") %>%
-  filter(!str_detect(categories, "#"))
 
+# run parsed_categories for empty categories
+```{r}
+PITS_empty_categories 
 ```
 
-```{r}
-# pits summary
-PITS_summary <- PITS_categories %>%
-  group_by(categories) %>%
-  summarise(count = n(), .groups = "drop") %>%
-  arrange(categories, desc(count))
-
-print(PITS_summary)
-```
 
 # merge datasets
 ```{r}
@@ -1142,6 +1201,12 @@ head(PITS_result)
 # # View the result
 # head(PITS_result)
 ```
+
+
+```{r}
+
+```
+
 
 ```{r}
 
