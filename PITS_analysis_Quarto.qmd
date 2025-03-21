@@ -138,10 +138,6 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 
 ```
 
-```{r}
-
-```
-
 ## Standardize Location format
 
 ```{r}
@@ -308,8 +304,8 @@ plot_by_location <- plot_ly(hourly_loc_long,
          barmode = "stack",
          hovermode = "compare")
 
-# Display the plots
-plot_hourly
+# # Display the plots
+# plot_hourly
 
 ```
 
@@ -787,10 +783,7 @@ PITS_empty_categories <- PITS_empty_categories %>%
     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
     TRUE ~ `Infraction Categories`
   )) %>%
-  # # Split by comma and tilde
-  # separate_rows(categories, sep = "[,~]") %>%
-  # # Clean up each value
-  # mutate(categories = str_trim(categories)) %>%
+  mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
   # # Replace null values and hash-only strings with "Other"
   mutate(categories = case_when(
     categories == "null" ~ "Other",
@@ -800,10 +793,13 @@ PITS_empty_categories <- PITS_empty_categories %>%
   )) %>%
   # Remove numeric identifiers (like 1.1.7.3)
   # # Process the categories column
-  mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
   mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+  # Split by comma and tilde
+  separate_rows(categories, sep = "[,~]") %>%
+  # Clean up each value
+  mutate(categories = str_trim(categories))
   # Filter out any remaining empty values after processing
-  filter(categories != "")
+  # filter(categories != "")
 
 # To join this back to the original dataframe
 # # Create a lookup table with the processed categories
@@ -886,11 +882,31 @@ category_lookup <- PITS_empty_categories %>%
 
 ```
 
-### remove source category from PITS_empty to merge
+### consider three spaces as separators
 ```{r}
-PITS_empty <- PITS_empty_categories %>% 
-  select(-category_source)
+# # consider three spaces as separators
+# library(tidyverse)
+# # 
+# # # Sample data
+# # PITS_empty_categories_cleaned <- data.frame(text_column = c(
+# #   "Medical 911    Called 911 for medical",
+# #   "Dangerous, Threatening, or Illegal Conduct    1.1.8 Illegal drugs or alcohol: possessing, selling, or using~Disruptive Personal Behavior    2.4 Sleeping~Medical 911    Called 911 for medical",
+# #   "Disruptive Personal Behavior    2.4 Sleeping~Medical 911",
+# #   "null    1.1.6 Disorderly conduct, fighting, violence, threatening, intimidating"
+# # ))
+# 
+# clean_text <- function(text) {
+#   text %>%
+#     str_replace_all("\\s{2,}", "|") %>%  # Replace multiple spaces with "|"
+#     str_remove_all("(?<!\\d)\\d+(\\.\\d+)+") %>%  # Remove numeric codes like 1.1.4 but keep 911
+#     str_replace_all("\\|+", "|") %>%  # Remove extra delimiters
+#     str_remove_all("^\\||\\|$")  # Remove leading/trailing separators
+# }
+# 
+# PITS_empty_categories$categories <- sapply(PITS_empty_categories$category_source, clean_text)
+
 ```
+
 
 ## unique counts of empty category
 ```{r}
@@ -906,30 +922,15 @@ print(unique_counts)
 
 ```
 
-### consider three spaces as separators
+# apply the other parsing category fct
 ```{r}
-# consider three spaces as separators
-library(tidyverse)
-# 
-# # Sample data
-# PITS_empty_categories_cleaned <- data.frame(text_column = c(
-#   "Medical 911    Called 911 for medical",
-#   "Dangerous, Threatening, or Illegal Conduct    1.1.8 Illegal drugs or alcohol: possessing, selling, or using~Disruptive Personal Behavior    2.4 Sleeping~Medical 911    Called 911 for medical",
-#   "Disruptive Personal Behavior    2.4 Sleeping~Medical 911",
-#   "null    1.1.6 Disorderly conduct, fighting, violence, threatening, intimidating"
-# ))
-
-clean_text <- function(text) {
-  text %>%
-    str_replace_all("\\s{2,}", "|") %>%  # Replace multiple spaces with "|"
-    str_remove_all("(?<!\\d)\\d+(\\.\\d+)+") %>%  # Remove numeric codes like 1.1.4 but keep 911
-    str_replace_all("\\|+", "|") %>%  # Remove extra delimiters
-    str_remove_all("^\\||\\|$")  # Remove leading/trailing separators
-}
-
-PITS_empty_categories$categories <- sapply(PITS_empty_categories$category_source, clean_text)
-
+PITS_empty_categories2 <- PITS_empty_categories %>%
+  mutate(parsed_categories = lapply(category_source, parse_categories)) %>%
+  unnest(parsed_categories)
 ```
+
+
+
 
 # parsing and pivoting wider for empty categories
 ```{r}
