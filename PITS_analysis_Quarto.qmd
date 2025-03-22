@@ -214,11 +214,11 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
   filter(!is.na(Date))
 ```
 
-## read in preprocessed data
+## Read in preprocessed data
 ```{r}
 # # bring in the data
-# PITS_2023_2025_public  <- read_csv("data/pits2023-2025-public.csv")
-# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]  
+PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
+PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
 ```
 # Group by hour and count events
 ```{r}
@@ -415,7 +415,6 @@ hourly_location_summary <- PITS_2023_2025_public %>%
 # Process by date chunks
 
 ```{r}
-
 # Get unique dates
 unique_dates <- unique(PITS_2023_2025_public$Date2)
 # Process in chunks of 30 days
@@ -755,9 +754,12 @@ PITS_empty_categories <- PITS_empty_categories %>%
     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
     TRUE ~ `Infraction Categories`
   )) %>%
+  mutate(category_source = str_replace_all(category_source, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+   mutate(category_source = iconv(category_source, "UTF-8", "ASCII", sub="")) %>%
   # Simply rename null and hash values to "Other" in the category_source column
   mutate(category_source = case_when(
     category_source == "null" ~ "Other",
+    category_source == "null~null" ~ "Other",
     str_detect(category_source, "^#+$") ~ "Other",
     TRUE ~ category_source
   ))
@@ -767,77 +769,23 @@ PITS_empty_categories <- PITS_empty_categories %>%
 # long version of parsing empty
 ```{r}
 # # Filter for rows where Infraction Categories is empty, null, or contains #
-PITS_empty_categories <- PITS_2023_2025_public %>%
-  filter(`Infraction Categories` == "" |
-         `Infraction Categories` == "null" |
-         str_detect(`Infraction Categories`, "#") |
-         is.na(`Infraction Categories`))
+# PITS_empty_categories <- PITS_2023_2025_public %>%
+#   filter(`Infraction Categories` == "" |
+#          `Infraction Categories` == "null" |
+#          str_detect(`Infraction Categories`, "#") |
+#          is.na(`Infraction Categories`))
 
-#
-PITS_empty_categories <- PITS_empty_categories %>%
-  # Create row ID for later joining
-  mutate(row_id = row_number()) %>%
-  # Create a new column that takes values from Infractions when Infraction Categories is problematic
-  mutate(category_source = case_when(
-    is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
-    str_detect(`Infraction Categories`, "#") ~ `Infractions`,
-    TRUE ~ `Infraction Categories`
-  )) %>%
-  mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
-  # # Replace null values and hash-only strings with "Other"
-  mutate(categories = case_when(
-    categories == "null" ~ "Other",
-    categories == "" ~ "Other",
-    str_detect(categories, "^#+$") ~ "Other",
-    TRUE ~ categories
-  )) %>%
-  # Remove numeric identifiers (like 1.1.7.3)
-  # # Process the categories column
-  mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
-  # Split by comma and tilde
-  separate_rows(categories, sep = "[,~]") %>%
-  # Clean up each value
-  mutate(categories = str_trim(categories))
-  # Filter out any remaining empty values after processing
-  # filter(categories != "")
-
-# To join this back to the original dataframe
-# # Create a lookup table with the processed categories
-category_lookup <- PITS_empty_categories %>%
-  select(row_id, categories) %>%
-  group_by(row_id) %>%
-  summarize(clean_categories = paste(categories, collapse = ", "))
-
-# # Join back to the original filtered dataframe
-# PITS_fixed_categories <- PITS_empty_categories %>%
-#   select(-categories) %>%
-#   distinct(row_id, .keep_all = TRUE) %>%
-#   left_join(category_lookup, by = "row_id") %>%
-#   select(-row_id) %>%  # Remove the temporary row_id
-#   # Replace the original Infraction Categories with the cleaned version
-#   mutate(`Infraction Categories` = clean_categories)
-
-# # To update the main dataframe
-# PITS_2023_2025_public_updated <- PITS_2023_2025_public %>%
-#   # Mark rows that need updating
-#   mutate(needs_update = `Infraction Categories` == "" |
-#                         `Infraction Categories` == "null" |
-#                         str_detect(`Infraction Categories`, "#") |
-#                         is.na(`Infraction Categories`)) %>%
-#   # Remove the rows that will be replaced
-#   filter(!needs_update) %>%
-#   # Remove the temporary column
-#   select(-needs_update) %>%
-#   # Bind with the fixed rows
-#   bind_rows(PITS_fixed_categories)
-
-# # %>%
-#   # # Process the categories column
-#   # mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
-#   # # Split by comma and tilde
-#   # separate_rows(categories, sep = "[,~]") %>%
-#   # # Clean up each value
-#   # mutate(categories = str_trim(categories)) %>%
+# #
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   # Create row ID for later joining
+#   mutate(row_id = row_number()) %>%
+#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
+# #   mutate(category_source = case_when(
+# #     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+# #     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+# #     TRUE ~ `Infraction Categories`
+# #   )) %>%
+#   mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
 #   # # Replace null values and hash-only strings with "Other"
 #   mutate(categories = case_when(
 #     categories == "null" ~ "Other",
@@ -846,65 +794,71 @@ category_lookup <- PITS_empty_categories %>%
 #     TRUE ~ categories
 #   )) %>%
 #   # Remove numeric identifiers (like 1.1.7.3)
-#   mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "")) %>%
+#   # # Process the categories column
+#   mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+# #   # # Split by comma and tilde
+#   separate_rows(categories, sep = "[,~]") %>%
+# #   # Clean up each value
+#   mutate(categories = str_trim(categories))
 #   # Filter out any remaining empty values after processing
-#   filter(categories != "")
-
-# To join this back to the original dataframe
+#   # filter(categories != "")
+# 
+# # To join this back to the original dataframe
 # # Create a lookup table with the processed categories
 # category_lookup <- PITS_empty_categories %>%
 #   select(row_id, categories) %>%
 #   group_by(row_id) %>%
 #   summarize(clean_categories = paste(categories, collapse = ", "))
+# 
 
-# # Join back to the original filtered dataframe
-# PITS_fixed_categories <- PITS_empty_categories %>%
-#   select(-categories) %>%
-#   distinct(row_id, .keep_all = TRUE) %>%
-#   left_join(category_lookup, by = "row_id") %>%
-#   select(-row_id) %>%  # Remove the temporary row_id
-#   # Replace the original Infraction Categories with the cleaned version
-#   mutate(`Infraction Categories` = clean_categories)
-
-# # To update the main dataframe
-# PITS_2023_2025_public_updated <- PITS_2023_2025_public %>%
-#   # Mark rows that need updating
-#   mutate(needs_update = `Infraction Categories` == "" |
-#                         `Infraction Categories` == "null" |
-#                         str_detect(`Infraction Categories`, "#") |
-#                         is.na(`Infraction Categories`)) %>%
-#   # Remove the rows that will be replaced
-#   filter(!needs_update) %>%
-#   # Remove the temporary column
-#   select(-needs_update) %>%
-#   # Bind with the fixed rows
-#   bind_rows(PITS_fixed_categories)
 
 ```
 
-### consider three spaces as separators
-```{r}
-# # consider three spaces as separators
-# library(tidyverse)
-# # 
-# # # Sample data
-# # PITS_empty_categories_cleaned <- data.frame(text_column = c(
-# #   "Medical 911    Called 911 for medical",
-# #   "Dangerous, Threatening, or Illegal Conduct    1.1.8 Illegal drugs or alcohol: possessing, selling, or using~Disruptive Personal Behavior    2.4 Sleeping~Medical 911    Called 911 for medical",
-# #   "Disruptive Personal Behavior    2.4 Sleeping~Medical 911",
-# #   "null    1.1.6 Disorderly conduct, fighting, violence, threatening, intimidating"
-# # ))
-# 
-# clean_text <- function(text) {
-#   text %>%
-#     str_replace_all("\\s{2,}", "|") %>%  # Replace multiple spaces with "|"
-#     str_remove_all("(?<!\\d)\\d+(\\.\\d+)+") %>%  # Remove numeric codes like 1.1.4 but keep 911
-#     str_replace_all("\\|+", "|") %>%  # Remove extra delimiters
-#     str_remove_all("^\\||\\|$")  # Remove leading/trailing separators
-# }
-# 
-# PITS_empty_categories$categories <- sapply(PITS_empty_categories$category_source, clean_text)
 
+```{r}
+# Clean the categories column by removing number patterns and creating separations
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   # Create a new cleaned_categories column
+#   mutate(cleaned_categories = sapply(categories, function(text) {
+#     if (is.na(text) || text == "") {
+#       return(NA)
+#     }
+#     
+#     # Replace tildes with multiple spaces
+#     text <- gsub("~", "    ", text)
+#     
+#     # Split by 3 or more spaces
+#     parts <- unlist(strsplit(text, "\\s{3,}"))
+#     parts <- trimws(parts)
+#     
+#     # Remove numbering patterns (like 2.1 or 1.1.7.2)
+#     parts <- gsub("\\d+(\\.\\d+)*\\s+", "", parts)
+#     
+#     # Remove any empty parts
+#     parts <- parts[parts != ""]
+#     
+#     # Join with a separator that works well for pivot_wider
+#     return(paste(parts, collapse = " | "))
+#   }))
+# 
+# # Now create a long format dataframe suitable for pivot_wider
+# PITS_empty_categories_long <- PITS_empty_categories %>%
+#   # Split the cleaned_categories into separate rows
+#   separate_rows(cleaned_categories, sep = " \\| ") %>%
+#   # Create a dummy value column for pivot_wider (e.g., count of 1 for each category)
+#   mutate(value = 1)
+# 
+# # Create a wide format with categories as columns
+# PITS_empty_categories_wide <- PITS_empty_categories_long %>%
+#   pivot_wider(
+#     id_cols = c(row_id), # Include any identifier columns you need
+#     names_from = cleaned_categories,
+#     values_from = value,
+#     values_fill = 0 # Fill missing values with 0
+#   )
+# 
+# # Preview the results
+# head(PITS_empty_categories_wide)
 ```
 
 
@@ -922,37 +876,20 @@ print(unique_counts)
 
 ```
 
-# apply the other parsing category fct
-```{r}
-PITS_empty_categories2 <- PITS_empty_categories %>%
-  mutate(parsed_categories = lapply(category_source, parse_categories)) %>%
-  unnest(parsed_categories)
-```
-
-
-
 
 # parsing and pivoting wider for empty categories
 ```{r}
-# Function to clean text
-clean_text <- function(text) {
-  text %>%
-    str_replace_all("\\s{2,}", "|") %>%  # Replace multiple spaces with "|"
-    str_remove_all("(?<!\\d)\\d+(\\.\\d+)?(?!\\d)") %>%  # Remove numeric codes except 911
-    str_replace_all("\\|+", "|") %>%  # Remove extra delimiters
-    str_remove_all("^\\||\\|$")  # Remove leading/trailing separators
-}
 
-# PITS_empty_categories <- PITS_empty_categories %>%
-#   mutate(cleaned_text = sapply(category_source, clean_text)) %>%
-#   separate_rows(cleaned_text, sep = "~") %>%  # Split into multiple rows
-#   mutate(value = 1) %>%  # Assign a binary indicator
-#   pivot_wider(names_from = cleaned_text, values_from = value, values_fill = 0)  # Pivot wider
 
 ```
 
 
 ```{r}
+# To use with a dataframe:
+# PITS_empty_categories2 <- PITS_empty_categories %>%
+#   mutate(clean_text_categories = lapply(categories, clean_text)) %>%
+#   unnest(clean_text_categories)
+
 # from pits Empty categories create a way to clean up the data
 # subset if categories are empty
 # this code parses why too much stuff
@@ -1070,9 +1007,6 @@ for (i in seq_along(examples)) {
 
 
 ```{r}
-# #example with parsed categories
-# PITS_empty_categories <- parse_infractions(PITS_empty_categories$category_source)
-
 ```
 
 
@@ -1132,6 +1066,12 @@ for (i in seq_along(examples)) {
 
 ``` 
 
+# apply the other parsing category fct
+```{r}
+# PITS_empty_categories2 <- PITS_empty_categories %>%
+#   mutate(parsed_categories = lapply(category_source, parse_categories)) %>%
+#   unnest(parsed_categories)
+```
 
 # run parsed_categories for empty categories
 ```{r}
