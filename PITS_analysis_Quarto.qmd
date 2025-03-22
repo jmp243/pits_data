@@ -768,6 +768,12 @@ PITS_empty_categories <- PITS_empty_categories %>%
 
 # long version of parsing empty
 ```{r}
+# rename 
+PITS_empty_categories <- PITS_empty_categories %>% 
+        mutate(category_source = case_when(
+        category_source == "Medical 911Called 911 for medical" ~ "Medical 911",
+        TRUE ~ category_source
+  ))
 # # Filter for rows where Infraction Categories is empty, null, or contains #
 # PITS_empty_categories <- PITS_2023_2025_public %>%
 #   filter(`Infraction Categories` == "" |
@@ -814,6 +820,36 @@ PITS_empty_categories <- PITS_empty_categories %>%
 
 ```
 
+```{r}
+library(stringr)
+library(dplyr)
+
+# Sample text
+text <- "Disruptive Personal Behavior2.4 Sleeping2.10 Creating tripping hazards, blocking aisles, exits, entrances~Medical 911"
+
+# Function to clean and add separators
+clean_text <- function(text) {
+  text %>%
+    str_replace_all("(?<!911)\\b\\d+\\.\\d+\\b", "") %>%  # Remove numeric codes like 2.4, 2.10 (but not 911)
+    str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric
+    str_replace_all("(?<!911)(?<=\\D)(?=\\b(?!911)\\d+\\b)", " | ") %>%  # Insert separator before standalone numbers (not 911)
+    str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
+    str_squish()  # Remove extra spaces
+}
+
+
+# clean_text <- function(text) {
+#   text %>%
+#     str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric codes like 2.4, 2.10 but not 911
+#     str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
+#     str_squish()  # Remove extra spaces
+# }
+
+
+# Apply function
+cleaned_text <- clean_text(text)
+print(cleaned_text)
+```
 
 ```{r}
 # Clean the categories column by removing number patterns and creating separations
