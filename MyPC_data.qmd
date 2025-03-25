@@ -1,3 +1,4 @@
+
 ---
 title: "MyPC_data"
 format: html
@@ -11,7 +12,7 @@ MyPC_2023 <- read_csv("~/data librarian/MyPC_data/MyPC_2023_siteAndLocationUsage
                       skip = 15)
 MyPC_2024 <- read_csv("~/data librarian/MyPC_data/MyPC_2024_siteAndLocationUsage.csv", 
                       skip = 15)
-MyPC_2025 <- read_csv("~/data librarian/MyPC_data/MyPC_Mar13_2025_siteAndLocationUsage.csv", 
+MyPC_2025 <- read_csv("~/data librarian/MyPC_data/MyPC_Mar19_2025_siteAndLocationUsage.csv", 
                       skip = 15)
 MyPC_all <- rbind(MyPC_2023, MyPC_2024, MyPC_2025)
 
@@ -59,7 +60,7 @@ MyPC_public <- MyPC_public %>%
 as.list(unique(MyPC_public$Site))
 
 MyPC_public <- MyPC_public %>%
-  rename(Location_detail = Location) %>% 
+  rename(Location_detail = Location) %>%
   rename(Location = Site)
 
 ```
@@ -126,9 +127,9 @@ as.list(unique(MyPC_public$Location_Standard))
 ```
 
 ```{r}
-# Open MyPC data
-MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
-MyPC_public <- MyPC_public[,-1]  
+# # Open MyPC data
+# MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
+# MyPC_public <- MyPC_public[,-1]  
 ```
 
 ## generate a consistent ID
@@ -222,29 +223,149 @@ p <- plot_ly(sd,
     yaxis = list(title = "Number of Sessions"),
     barmode = "stack",
     hovermode = "compare",
-     showlegend = FALSE  # Remo
+     showlegend = FALSE  # Remove legend
   )
-
 # Create the filter controls
 # filters <- list(
 #   filter_select("Location_Standard", "Location", sd, ~Location_Standard, multiple = TRUE),
 #   filter_slider("booking_date", "Date Range", sd, ~booking_date, width = "100%")
 # )
 
-# Create filter panel
-filter_panel <- list(
-  filter_select("Location_Standard", "Location", sd, ~Location_Standard, multiple = TRUE),
-  filter_slider("booking_date", "Date Range", sd, ~booking_date, width = "100%"),
-  
-)
+# Create the filter panel correctly
+location_filter <- filter_select("location", "Location", sd, ~Location_Standard, multiple = TRUE)
+date_filter <- filter_slider("date", "Date Range", sd, ~booking_date, width = "100%")
 
 
 # Combine the filters and plot
 bscols(
   widths = c(3, 9),
-  filters,
+  filter_panel,
   p
 )
+```
+# create a ratio graph
+
+```{r}
+library(dplyr)
+library(plotly)
+library(crosstalk)
+library(htmltools)
+
+# Step 1: Prepare and aggregate both datasets
+# Aggregate PITS data by location and date
+PITS_counts <- PITS_2023_2025_public %>%
+  # Make sure date is in proper format
+  mutate(date = as.Date(Date)) %>%
+  group_by(Location_Standard, date) %>%
+  summarize(infraction_count = n(), .groups = "drop")
+
+# Aggregate MyPC data by location and date
+MyPC_counts <- MyPC_public %>%
+  # select(booking_date, Location_Standard) %>% 
+  # Make sure date is in proper format
+  # mutate(date = as.Date(`Booking From`)) %>%
+  rename(date = booking_from) %>% 
+  group_by(Location_Standard, date) %>%
+  summarize(user_count = n(), .groups = "drop")
+
+# Step 2: Join the datasets
+ratio_data <- MyPC_counts %>%
+  full_join(PITS_counts, by = c("Location_Standard", "date")) %>%
+  # Handle any missing values
+  mutate(
+    infraction_count = ifelse(is.na(infraction_count), 0, infraction_count),
+    user_count = ifelse(is.na(user_count), 0, user_count)
+  )
+
+# Step 3: Calculate the ratio
+ratio_data <- ratio_data %>%
+  # Avoid division by zero
+  mutate(
+    ratio = ifelse(user_count > 0, infraction_count / user_count, 0),
+    # Multiply by 100 to get percentage
+    ratio_percentage = ratio * 100
+  )
+
+# Step 4: Create the interactive visualization
+# Create shared data object for filtering
+sd <- SharedData$new(ratio_data)
+
+# Create the plotly visualization
+p <- plot_ly(sd, 
+             x = ~date, 
+             y = ~ratio_percentage, 
+             color = ~Location_Standard, 
+             type = "scatter",
+             mode = "lines+markers",
+             hovertemplate = ~paste(
+               "Date: ", format(date, "%Y-%m-%d"),
+               "<br>Location: ", Location_Standard,
+               "<br>Infractions: ", infraction_count,
+               "<br>Users: ", user_count,
+               "<br>Ratio: ", sprintf("%.2f%%", ratio_percentage),
+               "<extra></extra>"
+             )) %>%
+  layout(
+    title = "Ratio of PITS Infractions to MyPC Users by Location",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Infraction Rate (%)"),
+    hovermode = "closest"
+  )
+
+# Create the filter panel
+location_filter <- filter_select("location", "Location", sd, ~Location_Standard, multiple = TRUE)
+date_filter <- filter_slider("date", "Date Range", sd, ~date, width = "100%")
+
+# Combine the filters and plot
+bscols(
+  widths = c(3, 9),
+  div(
+    location_filter,
+    date_filter
+  ),
+  p
+)
+```
+
+
+```{r}
+# ratio visualization 
+# Add a second plot showing the raw counts
+counts_plot <- plot_ly(sd) %>%
+  add_trace(
+    x = ~date,
+    y = ~infraction_count,
+    name = "Infractions",
+    type = "bar",
+    marker = list(color = "red")
+  ) %>%
+  add_trace(
+    x = ~date,
+    y = ~user_count,
+    name = "Users",
+    type = "bar",
+    marker = list(color = "blue")
+  ) %>%
+  layout(
+    title = "Raw Counts: Infractions vs Users",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Count"),
+    barmode = "group"
+  )
+
+# Display both plots
+bscols(
+  widths = c(3, 9),
+  div(
+    location_filter,
+    date_filter
+  ),
+  div(
+    p,
+    counts_plot
+  )
+)
+
 ```
 
 ### Save csv
