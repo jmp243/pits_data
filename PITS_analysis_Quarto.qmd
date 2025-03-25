@@ -3,11 +3,13 @@ title: "PITS_quarto"
 format: html
 editor: visual
 ---
-last updated 3/22/2025
+
+last updated 3/25/2025
 
 ## Running Code
 
 ### load libraries
+
 ```{r}
 # load libraries 
 library(plotly)
@@ -194,6 +196,7 @@ PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
 ```
 
 # hourly summary of PITS from Jan 2023 to March 2025
+
 ```{r}
 # group pits incidents by the hour
 
@@ -215,12 +218,15 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 ```
 
 ## Read in preprocessed data
+
 ```{r}
 # # bring in the data
 # PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
 # PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
 ```
+
 # Group by hour and count events
+
 ```{r}
 # # Group by hour and count events
 hourly_summary <- PITS_2023_2025_public %>%
@@ -272,6 +278,7 @@ hourly_loc_sum_total <-  hourly_summary %>%
 ```
 
 # Visualize hourly data
+
 ```{r}
 # Basic interactive bar chart of hourly counts
 plot_hourly <- plot_ly(hourly_loc_sum_total,
@@ -310,6 +317,7 @@ plot_by_location <- plot_ly(hourly_loc_long,
 ```
 
 # Visualize with location
+
 ```{r}
 # Create a plotly visualization with buttons to filter by location but no legend
 locations <- sort(unique(hourly_loc_long$Location))  # Sort locations alphabetically
@@ -395,6 +403,7 @@ usethis::edit_r_environ()
 ```
 
 ## hourly location summary
+
 ```{r}
 # More efficient approach
 hourly_location_summary <- PITS_2023_2025_public %>%
@@ -410,7 +419,6 @@ hourly_location_summary <- PITS_2023_2025_public %>%
     values_fill = 0
   )
 ```
-
 
 # Process by date chunks
 
@@ -444,6 +452,7 @@ for(chunk in date_chunks) {
 ```
 
 ## adding a data slider to the graph
+
 ```{r}
 # getting tge date tune slider but this only produced a date drop down
 # Get unique dates and locations
@@ -554,6 +563,7 @@ p <- p %>%
 ```
 
 # Crosstalk Plotly Graph by location and hour
+
 ```{r}
 library(plotly)
 library(dplyr)
@@ -600,6 +610,7 @@ filter_panel <- list(
 ```
 
 ## JavaScript to help produce a prettier image
+
 ```{js, echo=FALSE}
 
 var fitTheScreen = window.setInterval(function(){
@@ -638,6 +649,7 @@ bscols(
 ```
 
 # less aggressive parsing that works better
+
 ```{r}
 # 
 PITS_categories <- PITS_2023_2025_public %>%
@@ -671,8 +683,8 @@ PITS_categories <- PITS_2023_2025_public %>%
 
 ```
 
-
 ## attempt to parse categories with comma separator
+
 ```{r}
 # Function to properly parse categories with comma handling
 parse_categories <- function(categories_string) {
@@ -725,7 +737,6 @@ PITS_categories2 <- PITS_categories %>%
   unnest(parsed_categories)
 ```
 
-
 ```{r}
 # pits summary
 PITS_summary <- PITS_categories2 %>%
@@ -737,6 +748,7 @@ print(PITS_summary)
 ```
 
 # parse empty categories
+
 ```{r}
 # Filter for rows where Infraction Categories is empty, null, or contains #
 PITS_empty_categories <- PITS_2023_2025_public %>% 
@@ -767,6 +779,7 @@ PITS_empty_categories <- PITS_empty_categories %>%
 ```
 
 # long version of parsing empty
+
 ```{r}
 # rename 
 PITS_empty_categories <- PITS_empty_categories %>% 
@@ -821,34 +834,34 @@ PITS_empty_categories <- PITS_empty_categories %>%
 ```
 
 ```{r}
-library(stringr)
-library(dplyr)
-
-# Sample text
-text <- "Disruptive Personal Behavior2.4 Sleeping2.10 Creating tripping hazards, blocking aisles, exits, entrances~Medical 911"
-
-# Function to clean and add separators
-clean_text <- function(text) {
-  text %>%
-    str_replace_all("(?<!911)\\b\\d+\\.\\d+\\b", "") %>%  # Remove numeric codes like 2.4, 2.10 (but not 911)
-    str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric
-    str_replace_all("(?<!911)(?<=\\D)(?=\\b(?!911)\\d+\\b)", " | ") %>%  # Insert separator before standalone numbers (not 911)
-    str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
-    str_squish()  # Remove extra spaces
-}
-
-
+# library(stringr)
+# library(dplyr)
+# 
+# # Sample text
+# text <- "Disruptive Personal Behavior2.4 Sleeping2.10 Creating tripping hazards, blocking aisles, exits, entrances~Medical 911"
+# 
+# # Function to clean and add separators
 # clean_text <- function(text) {
 #   text %>%
-#     str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric codes like 2.4, 2.10 but not 911
+#     str_replace_all("(?<!911)\\b\\d+\\.\\d+\\b", "") %>%  # Remove numeric codes like 2.4, 2.10 (but not 911)
+#     str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric
+#     str_replace_all("(?<!911)(?<=\\D)(?=\\b(?!911)\\d+\\b)", " | ") %>%  # Insert separator before standalone numbers (not 911)
 #     str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
 #     str_squish()  # Remove extra spaces
 # }
-
-
-# Apply function
-cleaned_text <- clean_text(text)
-print(cleaned_text)
+# 
+# 
+# # clean_text <- function(text) {
+# #   text %>%
+# #     str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric codes like 2.4, 2.10 but not 911
+# #     str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
+# #     str_squish()  # Remove extra spaces
+# # }
+# 
+# 
+# # Apply function
+# cleaned_text <- clean_text(text)
+# print(cleaned_text)
 ```
 
 ```{r}
@@ -897,8 +910,8 @@ print(cleaned_text)
 # head(PITS_empty_categories_wide)
 ```
 
-
 ## unique counts of empty category
+
 ```{r}
 # get the various values in the list
 # Count and display unique values in category_source
@@ -912,8 +925,8 @@ print(unique_counts)
 
 ```
 
-
 # parsing and pivoting wider for empty categories
+
 ```{r}
 # Load required libraries
 library(dplyr)
@@ -949,6 +962,7 @@ result_df <- PITS_empty_categories %>%
   mutate(extracted_category = case_when(
     str_detect(category_source, fixed("Children in the Library")) ~ "Children in the Library",
     str_detect(category_source, fixed("Dangerous, Threatening, or Illegal Conduct")) ~ "Dangerous, Threatening, or Illegal Conduct",
+    str_detect(category_source, "Disorderly conduct, fighting, violence, threatening, intimidating") ~ "Dangerous, Threatening, or Illegal Conduct",
     str_detect(category_source, fixed("Disruptive Personal Behavior")) ~ "Disruptive Personal Behavior",
     str_detect(category_source, fixed("Incident Impact Level - Staff Traumatic Stress")) ~ "Incident Impact Level - Staff Traumatic Stress",
     str_detect(category_source, fixed("Medical 911")) ~ "Medical 911",
@@ -991,8 +1005,13 @@ result_wide
 
 ```
 
+```{r}
+# result_df has the right extracted_category
+names(result_df)
+```
 
 ```{r}
+names(PITS_categories2)
 # To use with a dataframe:
 # PITS_empty_categories2 <- PITS_empty_categories %>%
 #   mutate(clean_text_categories = lapply(categories, clean_text)) %>%
@@ -1039,86 +1058,106 @@ result_wide
 
 ```
 
-# function to parse infractions
+# rename pits empty categories
+
 ```{r}
-# Function to parse infraction string into clean categories
-parse_infractions <- function(infraction_string) {
-  # Handle null or hash-only values first
-  if (is.null(infraction_string) || is.na(infraction_string) || 
-      infraction_string == "null" || grepl("^#+$", infraction_string)) {
-    return("Other")
-  }
-  
-  # Step 1: Replace ~ with a special delimiter to handle the major category breaks
-  infraction_string <- gsub("~", " ||| ", infraction_string)
-  
-  # Step 2: Split by number patterns followed by spaces
-  # This regular expression matches patterns like "1.1.7.3 " or "2.1 "
-  categories <- unlist(strsplit(infraction_string, "\\s+\\d+(\\.\\d+)*\\s+"))
-  
-  # Step 3: Clean up the categories
-  categories <- sapply(categories, function(cat) {
-    # Trim whitespace
-    cat <- trimws(cat)
-    
-    # Replace any categories that are "null" or just hash marks with "Other"
-    if (cat == "null" || grepl("^#+$", cat)) {
-      return("Other")
-    }
-    
-    # Handle the special delimiter we added
-    if(grepl(" \\|\\|\\| ", cat)) {
-      parts <- unlist(strsplit(cat, " \\|\\|\\| "))
-      # Check each part for null or hash marks
-      parts <- sapply(parts, function(p) {
-        if (trimws(p) == "null" || grepl("^#+$", trimws(p))) {
-          return("Other")
-        } else {
-          return(p)
-        }
-      })
-      return(parts)
-    }
-    
-    return(cat)
-  })
-  
-  # Flatten the list
-  categories <- unlist(categories)
-  
-  # Step 4: Remove any empty categories and trim whitespace again
-  categories <- categories[categories != ""]
-  categories <- trimws(categories)
-  
-  # Step 5: Handle any remaining numeric prefixes at the beginning of categories
-  categories <- gsub("^\\d+(\\.\\d+)*\\s+", "", categories)
-  
-  return(categories)
-}
-
-# Example usage with various inputs
-examples <- list(
-  "Dangerous, Threatening, or Illegal Conduct    1.1.7.3 Harassment: Profane, offensive, abusive language    1.1.7.2 Harassment: Conduct, stares, or gestures causing fear of safety, distress, alarm, harassment",
-  "null",
-  "##############",
-  "Disruptive behavior~null~Called 911 for medical"
-)
-
-# Parse and display results for each example
-for (i in seq_along(examples)) {
-  cat("Example", i, ":", "\n")
-  print(parse_infractions(examples[[i]]))
-  cat("\n")
-}
+result_df <- result_df %>% 
+  rename(categories = category_source) %>% 
+  rename(parsed_categories = extracted_category)
+# # Function to parse infraction string into clean categories
+# parse_infractions <- function(infraction_string) {
+#   # Handle null or hash-only values first
+#   if (is.null(infraction_string) || is.na(infraction_string) || 
+#       infraction_string == "null" || grepl("^#+$", infraction_string)) {
+#     return("Other")
+#   }
+#   
+#   # Step 1: Replace ~ with a special delimiter to handle the major category breaks
+#   infraction_string <- gsub("~", " ||| ", infraction_string)
+#   
+#   # Step 2: Split by number patterns followed by spaces
+#   # This regular expression matches patterns like "1.1.7.3 " or "2.1 "
+#   categories <- unlist(strsplit(infraction_string, "\\s+\\d+(\\.\\d+)*\\s+"))
+#   
+#   # Step 3: Clean up the categories
+#   categories <- sapply(categories, function(cat) {
+#     # Trim whitespace
+#     cat <- trimws(cat)
+#     
+#     # Replace any categories that are "null" or just hash marks with "Other"
+#     if (cat == "null" || grepl("^#+$", cat)) {
+#       return("Other")
+#     }
+#     
+#     # Handle the special delimiter we added
+#     if(grepl(" \\|\\|\\| ", cat)) {
+#       parts <- unlist(strsplit(cat, " \\|\\|\\| "))
+#       # Check each part for null or hash marks
+#       parts <- sapply(parts, function(p) {
+#         if (trimws(p) == "null" || grepl("^#+$", trimws(p))) {
+#           return("Other")
+#         } else {
+#           return(p)
+#         }
+#       })
+#       return(parts)
+#     }
+#     
+#     return(cat)
+#   })
+#   
+#   # Flatten the list
+#   categories <- unlist(categories)
+#   
+#   # Step 4: Remove any empty categories and trim whitespace again
+#   categories <- categories[categories != ""]
+#   categories <- trimws(categories)
+#   
+#   # Step 5: Handle any remaining numeric prefixes at the beginning of categories
+#   categories <- gsub("^\\d+(\\.\\d+)*\\s+", "", categories)
+#   
+#   return(categories)
+# }
+# 
+# # Example usage with various inputs
+# examples <- list(
+#   "Dangerous, Threatening, or Illegal Conduct    1.1.7.3 Harassment: Profane, offensive, abusive language    1.1.7.2 Harassment: Conduct, stares, or gestures causing fear of safety, distress, alarm, harassment",
+#   "null",
+#   "##############",
+#   "Disruptive behavior~null~Called 911 for medical"
+# )
+# 
+# # Parse and display results for each example
+# for (i in seq_along(examples)) {
+#   cat("Example", i, ":", "\n")
+#   print(parse_infractions(examples[[i]]))
+#   cat("\n")
+# }
 
 ```
 
-
+# combine dateframes with extracted categories
 ```{r}
+names(result_df)
+
+PITS_public <- rbind(result_df, PITS_categories2) %>% 
+  select(-row_id) 
+  # mutate(parsed_categories = case_when(
+  #   # parsed_categories == "null" ~ "Other",
+  #   # parsed_categories == "NA" ~ "Other",
+  #   # str_detect(categories, "null") ~ "Other",
+  #   str_detect(categories, "Disorderly conduct, fighting, violence, threatening, intimidating") ~ "Dangerous, Threatening, or Illegal Conduct",
+  #   TRUE ~ parsed_categories))
 ```
 
-
+# summarize the new categories
 ```{r}
+PITS_public_summary <- PITS_public %>%
+  group_by(parsed_categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(parsed_categories, desc(count))
+
+print(PITS_public_summary)
 # sort out types of PITS
 # Extract all unique categories
 # library(dplyr)
@@ -1172,58 +1211,40 @@ for (i in seq_along(examples)) {
 # print(unique_categories)
 # print(paste("Number of unique categories:", nrow(unique_categories)))
 
-``` 
-
-# apply the other parsing category fct
-```{r}
-# PITS_empty_categories2 <- PITS_empty_categories %>%
-#   mutate(parsed_categories = lapply(category_source, parse_categories)) %>%
-#   unnest(parsed_categories)
 ```
 
-# run parsed_categories for empty categories
+# pivot pits_public wide
 ```{r}
-PITS_empty_categories 
+
+PITS_public_wide <- PITS_public %>%
+  filter(!is.na(parsed_categories)) %>%
+  distinct(`Incident ID`, parsed_categories, .keep_all = TRUE) %>%
+  mutate(present = 1) %>%
+  pivot_wider(
+    id_cols = `Incident ID`,
+    names_from = parsed_categories,
+    values_from = present,
+    values_fill = 0
+  )
 ```
-
-
-# merge datasets
-```{r}
-# merge datasets
-PITS_categories <- rbind(PITS_empty, PITS_categories)
-```
-
-```{r}
-# count the pits categories
-
-```
-
 
 ```{r}
   # Now pivot wider with each category becoming a column (1 = present)
-PITS_categories_wide <- PITS_categories %>%
-  # Create value = 1 for each category present
-  mutate(value = 1) %>%
-  # Pivot to wide format
-  pivot_wider(
-    id_cols = row_id,
-    names_from = categories,
-    values_from = value,
-    values_fill = 0  # Fill missing with 0
-  )
+# PITS_public_wide <- PITS_public %>%
+#   # Create value = 1 for each category present
+#   mutate(value = 1) %>%
+#   # Pivot to wide format
+#   pivot_wider(
+#     id_cols = row_id,
+#     names_from = parsed_categories,
+#     values_from = value,
+#     values_fill = 0  # Fill missing with 0
+#   )
 
-# Join back to original data frame
-PITS_result <- PITS_2023_2025_public %>%
-  mutate(row_id = row_number()) %>%
-  left_join(PITS_categories_wide, by = "row_id") %>%
-  select(-row_id)  # Remove the temporary row_id
-
-# View the result
-head(PITS_result)
 ```
 
-
 #finer grained categories with infraction column
+
 ```{r}
 
 # table(PITS_categories$categories)
@@ -1243,7 +1264,7 @@ head(PITS_result)
 # 
 # # Join back to original data frame
 # PITS_result <- PITS_2023_2025_public %>%
-#   mutate(row_id = row_number()) %>%
+#   cc
 #   left_join(PITS_categories_wide, by = "row_id") %>%
 #   select(-row_id)  # Remove the temporary row_id
 # 
@@ -1251,11 +1272,9 @@ head(PITS_result)
 # head(PITS_result)
 ```
 
-
 ```{r}
 
 ```
-
 
 ```{r}
 
