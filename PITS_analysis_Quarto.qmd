@@ -407,6 +407,21 @@ usethis::edit_r_environ()
 
 ```{r}
 # More efficient approach
+# hourly_location_summary <- PITS_2023_2025_public %>%
+#   # Select only necessary columns to reduce memory usage
+#   select(hour_label, Location_Standard, Date2) %>%
+#   # Pre-aggregate to reduce data size before pivoting
+#   count(Date2, hour_label, Location_Standard, name = "count") %>%
+#   # Now pivot with the smaller dataset
+#   pivot_wider(
+#     id_cols = c(Date2, hour_label),
+#     names_from = Location_Standard,
+#     values_from = count,
+#     values_fill = 0
+#   )
+library(dplyr)
+library(tidyr)
+
 hourly_location_summary <- PITS_2023_2025_public %>%
   # Select only necessary columns to reduce memory usage
   select(hour_label, Location_Standard, Date2) %>%
@@ -418,7 +433,12 @@ hourly_location_summary <- PITS_2023_2025_public %>%
     names_from = Location_Standard,
     values_from = count,
     values_fill = 0
-  )
+  ) %>%
+  # Ensure all NA values are replaced with 0
+  mutate(across(everything(), ~replace_na(.x, 0)))
+
+# Check if NA values are removed
+sum(is.na(hourly_location_summary))  # Should return 0
 ```
 
 # Process by date chunks
@@ -566,9 +586,117 @@ p <- p %>%
 # Crosstalk Plotly Graph by location and hour
 
 ```{r}
+# # library(plotly)
+# # library(dplyr)
+# # library(crosstalk)
+# # 
+# # # Convert hourly_location_summary to long format if needed
+# # hourly_loc_long <- hourly_location_summary %>%
+# #   pivot_longer(
+# #     cols = -c(Date2, hour_label),
+# #     names_to = "Location",
+# #     values_to = "Count"
+# #   )
+# # 
+# # # Make sure Date2 is a proper Date object
+# # hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+# # 
+# # hourly_loc_long2 <- hourly_loc_long %>%
+# #   filter(!is.na(hour_label))
+# # 
+# # # Create a shared data object
+# # sd <- SharedData$new(hourly_loc_long2)
+# # 
+# # # Create the plotly visualization
+# # p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar",  text = ~paste("Hour: ", hour_label,
+# #                           "<br>Location: ", Location,
+# #                           "<br>Count: ", Count,
+# #                           "<br>Date: ", Date2),
+# #              hoverinfo = "text") %>% 
+# #   layout(
+# #     title = "Events by Location and Hour",
+# #     xaxis = list(title = "Hour of Day", tickangle = 45),
+# #     yaxis = list(title = "Number of Events"),
+# #     barmode = "stack",
+# #     hovermode = "compare",
+# #     showlegend = FALSE
+# #   )
+# # # Create filter panel
+# # filter_panel <- list(
+# #   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+# #   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+# # )
+# 
+# library(plotly)
+# library(dplyr)
+# library(crosstalk)
+# library(tidyr)
+# 
+# # Convert hourly_location_summary to long format if needed
+# hourly_loc_long <- hourly_location_summary %>%
+#   pivot_longer(
+#     cols = -c(Date2, hour_label),
+#     names_to = "Location",
+#     values_to = "Count"
+#   )
+# 
+# # Make sure Date2 is a proper Date object
+# hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+# 
+# # Filter out NA values
+# hourly_loc_long2 <- hourly_loc_long %>%
+#   filter(!is.na(hour_label))
+# 
+# # Create a shared data object
+# sd <- SharedData$new(hourly_loc_long2)
+# 
+# # Create the plotly visualization
+# p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar",  
+#              text = ~paste("Hour: ", hour_label,
+#                           "<br>Location: ", Location,
+#                           "<br>Count: ", Count,
+#                           "<br>Date: ", Date2),
+#              hoverinfo = "text") %>% 
+#   layout(
+#     title = "Events by Location and Hour",
+#     xaxis = list(title = "Hour of Day", tickangle = 45),
+#     yaxis = list(title = "Number of Events"),
+#     barmode = "stack",
+#     hovermode = "closest",
+#     showlegend = FALSE
+#   )
+# 
+# # Create filter panel
+# filter_panel <- list(
+#   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+#   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+# )
+#   # # Add total incidents annotation
+#   # add_annotations(
+#   #   x = total_incidents_per_hour$hour_label,
+#   #   y = total_incidents_per_hour$TotalIncidents,
+#   #   text = ~paste0("Total: ", total_incidents_per_hour$TotalIncidents),
+#   #   xref = "x",
+#   #   yref = "y",
+#   #   showarrow = TRUE,
+#   #   arrowhead = 7,
+#   #   ax = 0,
+#   #   ay = -40,
+#   #   font = list(size = 10)
+#   # )
+# 
+# # Create filter panel
+# filter_panel <- list(
+#   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+#   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+# )
+```
+
+```{r}
 library(plotly)
 library(dplyr)
 library(crosstalk)
+library(tidyr)
 
 # Convert hourly_location_summary to long format if needed
 hourly_loc_long <- hourly_location_summary %>%
@@ -581,6 +709,7 @@ hourly_loc_long <- hourly_location_summary %>%
 # Make sure Date2 is a proper Date object
 hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
 
+# Filter out NA values
 hourly_loc_long2 <- hourly_loc_long %>%
   filter(!is.na(hour_label))
 
@@ -588,26 +717,28 @@ hourly_loc_long2 <- hourly_loc_long %>%
 sd <- SharedData$new(hourly_loc_long2)
 
 # Create the plotly visualization
-p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar",  text = ~paste("Hour: ", hour_label,
-                          "<br>Location: ", Location,
-                          "<br>Count: ", Count,
-                          "<br>Date: ", Date2),
-             hoverinfo = "text") %>% 
+p <- plot_ly(sd, 
+             x = ~hour_label, 
+             y = ~Count, 
+             color = ~Location, 
+             type = "bar",  
+             # Remove text parameter
+             hoverinfo = "text",
+             hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}") %>% 
   layout(
     title = "Events by Location and Hour",
     xaxis = list(title = "Hour of Day", tickangle = 45),
     yaxis = list(title = "Number of Events"),
     barmode = "stack",
-    hovermode = "compare",
+    hovermode = "closest",
     showlegend = FALSE
   )
+
 # Create filter panel
 filter_panel <- list(
   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
 )
-
-
 ```
 
 ## JavaScript to help produce a prettier image
@@ -637,16 +768,88 @@ bscols(
 ```
 
 ```{r}
+library(plotly)
+library(dplyr)
+library(crosstalk)
+library(tidyr)
 
-# PITS_categories <- PITS_2023_2025_public %>%
-#   # Create row ID for later joining
-#   mutate(row_id = row_number()) %>%
-#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
-#   mutate(category_source = case_when(
-#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
-#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
-#     TRUE ~ `Infraction Categories`
-#   ))
+# Check column names before pivoting
+print(colnames(hourly_location_summary))
+
+# Convert hourly_location_summary to long format if needed
+hourly_loc_long <- hourly_location_summary %>%
+  pivot_longer(
+    cols = -c(Date2, hour_label),
+    names_to = "Location",
+    values_to = "Count"
+  )
+
+# Check if Location exists after pivot
+print(colnames(hourly_loc_long))
+
+# Ensure Date2 is a Date object
+hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+
+# Filter out NA values
+hourly_loc_long2 <- hourly_loc_long %>%
+  filter(!is.na(hour_label), !is.na(Location), !is.na(Count))
+
+# Verify the data after filtering
+print(head(hourly_loc_long2))
+
+# Create a shared data object
+sd <- SharedData$new(hourly_loc_long2)
+
+# Calculate total count per hour_label
+totals <- hourly_loc_long2 %>%
+  group_by(hour_label) %>%
+  summarise(TotalCount = sum(Count, na.rm = TRUE))
+
+# Ensure totals data exists
+print(head(totals))
+
+# Create the plotly visualization
+c <- plot_ly(sd, 
+             x = ~hour_label, 
+             y = ~Count, 
+             color = ~Location, 
+             type = "bar",
+             hoverinfo = "text",
+             hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}<br>Count: %{y}<extra></extra>") %>% 
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "closest",
+    showlegend = FALSE
+  )
+
+# Add total count as text labels on top of bars
+c <- c %>% 
+  add_trace(
+    data = totals,
+    x = ~hour_label,
+    y = ~TotalCount,
+    type = "scatter",
+    mode = "text",
+    text = ~TotalCount,
+    textposition = "top",
+    showlegend = FALSE
+  )
+
+# Create filter panel
+filter_panel <- list(
+  filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+  filter_select("Location ", "Location", sd, ~Location, multiple = TRUE)
+)
+
+# Combine filters with plot
+bscols(
+  widths = c(3, 9),
+  filter_panel,
+  c
+)
 ```
 
 # less aggressive parsing that works better
@@ -1356,8 +1559,8 @@ p <- plot_ly(sd,
              text = ~paste("Hour: ", hour_label,
                            "<br>Location: ", Location_Standard,
                            "<br>Incident Type: ", Incident_Type,
-                           "<br>Date: ", Date2,
-                           "<br>Total Incidents: ", Total_Count),
+                           "<br>Total Incidents: ", Total_Count,
+                           "<br>Date: ", Date2),
              hoverinfo = "text") %>% 
   layout(
     title = "Incidents by Location, Hour, and Type",
@@ -1365,17 +1568,18 @@ p <- plot_ly(sd,
     yaxis = list(title = "Number of Incidents"),
     barmode = "stack",
     hovermode = "compare"
-  ) %>%
-  # Add total count annotations
-  add_annotations(
-    x = unique(incident_counts_with_total$hour_label),
-    y = unique(incident_counts_with_total$Total_Count),
-    text = ~unique(incident_counts_with_total$Total_Count),
-    xref = "x",
-    yref = "y",
-    showarrow = FALSE,
-    font = list(color = 'red')
-  )
+  ) 
+# %>%
+#   # Add total count annotations
+#   add_annotations(
+#     x = unique(incident_counts_with_total$hour_label),
+#     y = unique(incident_counts_with_total$Total_Count),
+#     text = ~unique(incident_counts_with_total$Total_Count),
+#     xref = "x",
+#     yref = "y",
+#     showarrow = FALSE,
+#     font = list(color = 'red')
+#   )
 
 # Create filter panel
 filter_panel <- list(
@@ -1390,12 +1594,12 @@ bscols(
   filter_panel,
   p
 )
-
-# Print summary for verification
-print("Total incidents by type:")
-print(incident_counts %>% 
-  group_by(Incident_Type) %>% 
-  summarise(Total_Incidents = sum(Count)))
+# 
+# # Print summary for verification
+# print("Total incidents by type:")
+# print(incident_counts %>% 
+#   group_by(Incident_Type) %>% 
+#   summarise(Total_Incidents = sum(Count)))
 ```
 
 ```{r}
