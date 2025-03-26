@@ -350,6 +350,7 @@ sd5 <- SharedData$new(ratio_data2024)
 library(dplyr)
 library(DT)
 library(crosstalk)
+library(data.table)
 
 # Prepare the data
 summary_table <- ratio_data2024 %>%
