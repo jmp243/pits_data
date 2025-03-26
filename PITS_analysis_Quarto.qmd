@@ -1263,48 +1263,7 @@ names(result_df)
 
 ```{r}
 names(PITS_categories2)
-# To use with a dataframe:
-# PITS_empty_categories2 <- PITS_empty_categories %>%
-#   mutate(clean_text_categories = lapply(categories, clean_text)) %>%
-#   unnest(clean_text_categories)
 
-# from pits Empty categories create a way to clean up the data
-# subset if categories are empty
-# this code parses why too much stuff
-# 
-# PITS_empty_categories <- PITS_2023_2025_public %>% 
-#   # Filter for rows where Infraction Categories is empty, null, or contains #
-#   filter(`Infraction Categories` == "" | 
-#          `Infraction Categories` == "null" | 
-#          str_detect(`Infraction Categories`, "#") |
-#          is.na(`Infraction Categories`))
-# 
-# PITS_empty_categories <- PITS_empty_categories %>%
-#   # Create row ID for later joining
-#   mutate(row_id = row_number()) %>%
-#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
-#   mutate(category_source = case_when(
-#     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
-#     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
-#     TRUE ~ `Infraction Categories`
-#   )) %>%
-#   
-#   # Process the categories column
-#   mutate(categories = str_replace_all(category_source, "[~,]", ",")) %>%
-#   # # For Infractions column values, clean up numeric codes like 1.14
-#   mutate(categories = str_replace_all(categories, "\\s*\\d+\\.\\d+\\s*", "")) %>%
-#   # Split by comma
-#   # separate_rows(categories, sep = ",") %>% 
-#   # Clean up each value
-#   mutate(categories = str_trim(categories)) %>% 
-#   # Replace "or Illegal Conduct" with "Illegal Conduct"
-#   # mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
-#   # # Remove "or" and "and" if they appear as standalone words
-#   mutate(categories = str_replace(categories, "^(or|and)$", ""))
-#   # Remove empty strings, null values, and categories with hash symbols
-#   # filter(categories != "") %>%
-#   # filter(categories != "null") %>%
-#   # filter(!str_detect(categories, "#"))
 
 
 ```
@@ -1315,75 +1274,7 @@ names(PITS_categories2)
 result_df <- result_df %>% 
   rename(categories = category_source) %>% 
   rename(parsed_categories = extracted_category)
-# # Function to parse infraction string into clean categories
-# parse_infractions <- function(infraction_string) {
-#   # Handle null or hash-only values first
-#   if (is.null(infraction_string) || is.na(infraction_string) || 
-#       infraction_string == "null" || grepl("^#+$", infraction_string)) {
-#     return("Other")
-#   }
-#   
-#   # Step 1: Replace ~ with a special delimiter to handle the major category breaks
-#   infraction_string <- gsub("~", " ||| ", infraction_string)
-#   
-#   # Step 2: Split by number patterns followed by spaces
-#   # This regular expression matches patterns like "1.1.7.3 " or "2.1 "
-#   categories <- unlist(strsplit(infraction_string, "\\s+\\d+(\\.\\d+)*\\s+"))
-#   
-#   # Step 3: Clean up the categories
-#   categories <- sapply(categories, function(cat) {
-#     # Trim whitespace
-#     cat <- trimws(cat)
-#     
-#     # Replace any categories that are "null" or just hash marks with "Other"
-#     if (cat == "null" || grepl("^#+$", cat)) {
-#       return("Other")
-#     }
-#     
-#     # Handle the special delimiter we added
-#     if(grepl(" \\|\\|\\| ", cat)) {
-#       parts <- unlist(strsplit(cat, " \\|\\|\\| "))
-#       # Check each part for null or hash marks
-#       parts <- sapply(parts, function(p) {
-#         if (trimws(p) == "null" || grepl("^#+$", trimws(p))) {
-#           return("Other")
-#         } else {
-#           return(p)
-#         }
-#       })
-#       return(parts)
-#     }
-#     
-#     return(cat)
-#   })
-#   
-#   # Flatten the list
-#   categories <- unlist(categories)
-#   
-#   # Step 4: Remove any empty categories and trim whitespace again
-#   categories <- categories[categories != ""]
-#   categories <- trimws(categories)
-#   
-#   # Step 5: Handle any remaining numeric prefixes at the beginning of categories
-#   categories <- gsub("^\\d+(\\.\\d+)*\\s+", "", categories)
-#   
-#   return(categories)
-# }
-# 
-# # Example usage with various inputs
-# examples <- list(
-#   "Dangerous, Threatening, or Illegal Conduct    1.1.7.3 Harassment: Profane, offensive, abusive language    1.1.7.2 Harassment: Conduct, stares, or gestures causing fear of safety, distress, alarm, harassment",
-#   "null",
-#   "##############",
-#   "Disruptive behavior~null~Called 911 for medical"
-# )
-# 
-# # Parse and display results for each example
-# for (i in seq_along(examples)) {
-#   cat("Example", i, ":", "\n")
-#   print(parse_infractions(examples[[i]]))
-#   cat("\n")
-# }
+
 
 ```
 
@@ -1409,61 +1300,11 @@ PITS_public_summary <- PITS_public %>%
   arrange(parsed_categories, desc(count))
 
 print(PITS_public_summary)
-# sort out types of PITS
-# Extract all unique categories
-# library(dplyr)
-# library(tidyr)
-# library(stringr)
-# 
-# unique_categories <- PITS_2023_2025_public %>%
-#   # First convert all separators to a common one
-#   mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
-#   # Replace " or " and " and " with commas when they appear between words
-#   mutate(categories = str_replace_all(categories, "\\s+or\\s+", ",")) %>%
-#   mutate(categories = str_replace_all(categories, "\\s+and\\s+", ",")) %>%
-#   mutate(categories = case_when(
-#     categories == "null" ~ "Other",
-#     categories == "" ~ "Other",
-#     str_detect(categories, "^#+$") ~ "Other",
-#     TRUE ~ categories
-#   )) %>%
-#   # Split by comma
-#   separate_rows(categories, sep = ",") %>%
-#   # Clean up each value
-#   mutate(categories = str_trim(categories)) %>%
-#   # Remove standalone "or" and "and" if they still exist
-#   filter(!categories %in% c("or", "and", "")) %>%
-#   # Get unique values
-#   distinct(categories) %>%
-#   # Sort alphabetically
-#   arrange(categories)
-# 
-# 
-# # Split all entries and get unique values
-# unique_categories <- PITS_2023_2025_public %>%
-#   mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
-#   # Split by comma
-#   separate_rows(categories, sep = ",") %>%
-#   # Clean up each value
-#   mutate(categories = str_trim(categories)) %>%
-#   # Remove "or" and "and" if they appear as standalone words after splitting
-#   mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
-#   # # Remove empty strings that might result from the replacements
-#   # filter(categories != "") %>%
-#   # filter(categories != "null") %>%
-#   # # Filter out categories containing hash symbols
-#   # filter(!str_detect(categories, "#")) %>%
-#   mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
-#   # Get unique values
-#   distinct(categories) %>%
-#   # Sort alphabetically
-#   arrange(categories)
-# 
-# print(unique_categories)
-# print(paste("Number of unique categories:", nrow(unique_categories)))
+
 
 ```
-# GRAPH for incident types
+
+# TABLE GRAPH for incident types
 ```{r}
 library(dplyr)
 library(kableExtra)
@@ -1473,12 +1314,12 @@ PITS_public_summary <- PITS_public %>%
   group_by(parsed_categories) %>%
   summarise(count = n(), .groups = "drop") %>%
   mutate(
-    percentage = round((count / sum(count)) * 100, 2)  # Calculate & round percentage
+    percentage = round((count / sum(count)) * 100, 1)  # Calculate & round percentage
   ) %>%
   arrange(desc(count))  # Sort by highest count
 
 # Create a formatted table
-PITS_public_summary %>%
+PITS_public_summary_table <- PITS_public_summary %>%
   kable("html", 
         col.names = c("Category", "Count", "Percentage (%)"), 
         format.args = list(big.mark = ",")) %>%
@@ -1489,6 +1330,8 @@ PITS_public_summary %>%
   column_spec(1, bold = TRUE) %>%
   column_spec(3, color = "blue") %>%
   row_spec(0, bold = TRUE, color = "white", background = "#428bca")
+
+save_kable(PITS_public_summary_table, file = "PITS_incident_type_summary_table.html")
 
 
 ```
@@ -1584,6 +1427,13 @@ bscols(
 # Optional: Print out the first few rows to verify counts
 # print(head(incident_counts))
 ```
+
+```{r}
+
+# Save the plot as an interactive HTML file
+saveWidget(p2, file = "PITS_incidents-date-location-graph.html", selfcontained = TRUE)
+```
+
 
 ## GRAPH with totals for incidents
 ```{r}
