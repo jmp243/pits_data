@@ -167,6 +167,8 @@ str(Circulation_Jan2025$Location)
 # # read in gate count data
 # Gate_Count_for_Jan_2024_Jan_2025 <- read_csv("~/data librarian/Wids_data/Gate Count for Jan 2024 - Jan 2025.csv")
 ```
+
+
 ```{r}
 # location name consistency 
 # Create a master location mapping table
@@ -239,6 +241,10 @@ gate_count_Jan2025 <- standardize_dataset(gate_count_Jan2025, "Location")
 
 
 ```{r}
+
+# subset data to 2024
+PITS_ListIncidents_Jan2025 <- PITS_2023_2025_public %>% 
+  filter(Date2 >= as.Date("2025-01-01") & Date2 <= as.Date("2025-02-01"))  # Adjust date range as needed
 
 PITS_ListIncidents_Jan2025 %>% 
   select(Date2, time_12h, Location_Standard, Infractions) %>% 
