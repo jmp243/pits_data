@@ -412,15 +412,15 @@ summary_table <- ratio_data2024 %>%
       0
     )
   ) %>%
-  # Round numeric columns to 2 decimal places
+  # Round numeric columns
   mutate(
-    Total_Users = ifelse(Total_Users == 0, 0.1, Total_Users),
+    Total_Users = round(ifelse(Total_Users == 0, 0.1, Total_Users), 0),  # Ensuring whole number
     Average_Daily_Users = round(Average_Daily_Users, 2),
     Average_Daily_Infractions = round(Average_Daily_Infractions, 2),
     Infractions_Per_1000_Users = round(Infractions_Per_1000_Users, 2)
   ) %>%
   # Arrange by Infractions per 1000 Users in descending order
-  arrange(desc(Infractions_Per_1000_Users))
+  arrange(desc(Infractions_Per_1000_Users)) 
 
 # Create an interactive, formatted table
 summary_table %>%
