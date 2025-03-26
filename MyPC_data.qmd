@@ -260,16 +260,24 @@ library(plotly)
 library(crosstalk)
 library(htmltools)
 
+# subset data to 2024
+PITS_2024_2025_public <- PITS_2023_2025_public %>% 
+  filter(Date2 >= as.Date("2024-01-01"))  # Adjust date range as needed
+
 # Step 1: Prepare and aggregate both datasets
 # Aggregate PITS data by location and date
-PITS_counts <- PITS_2023_2025_public %>%
+PITS_counts <- PITS_2024_2025_public %>%
   # Make sure date is in proper format
   mutate(date = as.Date(Date)) %>%
   group_by(Location_Standard, date) %>%
   summarize(infraction_count = n(), .groups = "drop")
 
+# subset data to 2024
+MyPC_2024_2025_public <- MyPC_public %>% 
+  filter(booking_date >= as.Date("2024-01-01")) 
+
 # Aggregate MyPC data by location and date
-MyPC_counts <- MyPC_public %>%
+MyPC_counts <- MyPC_2024_2025_public %>%
   # select(booking_date, Location_Standard) %>%
   # Make sure date is in proper format
   # mutate(date = as.Date(`Booking From`)) %>%
@@ -278,16 +286,17 @@ MyPC_counts <- MyPC_public %>%
   summarize(user_count = n(), .groups = "drop")
 
 # Step 2: Join the datasets
-ratio_data <- MyPC_counts %>%
+ratio_data2024 <- MyPC_counts %>%
   full_join(PITS_counts, by = c("Location_Standard", "date")) %>%
   # Handle any missing values
   mutate(
     infraction_count = ifelse(is.na(infraction_count), 0, infraction_count),
     user_count = ifelse(is.na(user_count), 0, user_count)
-  )
+  ) %>%
+  filter(date >= as.Date("2024-01-01"))  # Adjust date range as needed
 
 # Step 3: Calculate the ratio
-ratio_data <- ratio_data %>%
+ratio_data2024 <- ratio_data2024 %>%
   # Avoid division by zero
   mutate(
     ratio = ifelse(user_count > 0, infraction_count / user_count, 0),
@@ -297,7 +306,7 @@ ratio_data <- ratio_data %>%
 
 # Step 4: Create the interactive visualization
 # Create shared data object for filtering
-sd5 <- SharedData$new(ratio_data)
+sd5 <- SharedData$new(ratio_data2024)
 
 # Create the plotly visualization
 # p5 <- plot_ly(sd5,
@@ -343,7 +352,7 @@ library(DT)
 library(crosstalk)
 
 # Prepare the data
-summary_table <- ratio_data %>%
+summary_table <- ratio_data2024 %>%
   group_by(Location_Standard, date) %>%
   summarize(
     Total_Users = sum(user_count, na.rm = TRUE),
@@ -387,7 +396,7 @@ library(dplyr)
 library(kableExtra)
 
 # Aggregate data to get total summary
-summary_table <- ratio_data %>%
+summary_table <- ratio_data2024 %>%
   group_by(Location_Standard) %>%
   summarize(
     Total_Users = sum(user_count, na.rm = TRUE),
