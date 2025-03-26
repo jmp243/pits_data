@@ -243,18 +243,31 @@ gate_count_Jan2025 <- standardize_dataset(gate_count_Jan2025, "Location")
 ```{r}
 
 # subset data to 2024
-PITS_ListIncidents_Jan2025 <- PITS_2023_2025_public %>% 
+PITS_ListIncidents_Jan2025 <- PITS_categories2 %>% 
   filter(Date2 >= as.Date("2025-01-01") & Date2 <= as.Date("2025-02-01"))  # Adjust date range as needed
 
+# Compute incident percentage and format table
 PITS_ListIncidents_Jan2025 %>% 
   select(Date2, time_12h, Location_Standard, Infractions) %>% 
-    group_by(Location_Standard) %>% 
-    dplyr::summarize(Incident_count = n()) %>% # count records
-    left_join(gate_count_Jan2025) %>% 
-    select(-Location) %>%
-    mutate(Incident_Percentage = round((Incident_count / Gate_Count) * 100, 3)) %>% 
-    arrange(desc(Incident_Percentage))
-    
+  group_by(Location_Standard) %>% 
+  summarise(Incident_count = n(), .groups = "drop") %>%  # Count records
+  left_join(gate_count_Jan2025, by = "Location_Standard") %>% 
+  select(-Location) %>%
+  mutate(Incident_Percentage = round((Incident_count / Gate_Count) * 100, 3)) %>% 
+  arrange(desc(Incident_Percentage)) %>%
+  
+  # Format table
+  kable("html", 
+        col.names = c("Location", "Incident Count", "Gate Count", "Incident Percentage (%)"), 
+        format.args = list(big.mark = ",")) %>%
+   add_header_above(c("PITS Incident Summary (Jan 2025)" = 4)) %>%  # Add table title spanning all 4 columns
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(3, color = "blue") %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#428bca")
 
     # dplyr::mutate(pct = scales::percent(Incident_count/sum(count), accuracy = 0.1)) %>%
     # 
