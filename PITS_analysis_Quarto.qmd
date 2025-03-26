@@ -441,34 +441,38 @@ hourly_location_summary <- PITS_2023_2025_public %>%
 sum(is.na(hourly_location_summary))  # Should return 0
 ```
 
+```{r}
+
+```
+
 # Process by date chunks
 
 ```{r}
 # Get unique dates
-unique_dates <- unique(PITS_2023_2025_public$Date2)
-# Process in chunks of 30 days
-chunk_size <- 30
-date_chunks <- split(unique_dates, ceiling(seq_along(unique_dates)/chunk_size))
-
-# Initialize empty result dataframe
-hourly_location_summary <- data.frame()
-
-# Process each chunk
-for(chunk in date_chunks) {
-  temp_df <- PITS_2023_2025_public %>%
-    filter(Date2 %in% chunk) %>%
-    select(hour_label, Location_Standard, Date2) %>%
-    count(Date2, hour_label, Location_Standard, name = "count") %>%
-    pivot_wider(
-      id_cols = c(Date2, hour_label),
-      names_from = Location_Standard,
-      values_from = count,
-      values_fill = 0
-    )
-  
-  # Append to result
-  hourly_location_summary <- bind_rows(hourly_location_summary, temp_df)
-}
+# unique_dates <- unique(PITS_2023_2025_public$Date2)
+# # Process in chunks of 30 days
+# chunk_size <- 30
+# date_chunks <- split(unique_dates, ceiling(seq_along(unique_dates)/chunk_size))
+# 
+# # Initialize empty result dataframe
+# hourly_location_summary <- data.frame()
+# 
+# # Process each chunk
+# for(chunk in date_chunks) {
+#   temp_df <- PITS_2023_2025_public %>%
+#     filter(Date2 %in% chunk) %>%
+#     select(hour_label, Location_Standard, Date2) %>%
+#     count(Date2, hour_label, Location_Standard, name = "count") %>%
+#     pivot_wider(
+#       id_cols = c(Date2, hour_label),
+#       names_from = Location_Standard,
+#       values_from = count,
+#       values_fill = 0
+#     )
+#   
+#   # Append to result
+#   hourly_location_summary <- bind_rows(hourly_location_summary, temp_df)
+# }
 
 ```
 
@@ -773,16 +777,21 @@ library(dplyr)
 library(crosstalk)
 library(tidyr)
 
-# Check column names before pivoting
-print(colnames(hourly_location_summary))
+colnames(hourly_location_summary) <- trimws(colnames(hourly_location_summary))
 
-# Convert hourly_location_summary to long format if needed
 hourly_loc_long <- hourly_location_summary %>%
   pivot_longer(
     cols = -c(Date2, hour_label),
     names_to = "Location",
     values_to = "Count"
   )
+
+# hourly_loc_long <- hourly_location_summary %>%
+#   pivot_longer(
+#     cols = starts_with(""),  # Ensures all other columns are pivoted
+#     names_to = "Location",
+#     values_to = "Count"
+#   )
 
 # Check if Location exists after pivot
 print(colnames(hourly_loc_long))
@@ -798,7 +807,7 @@ hourly_loc_long2 <- hourly_loc_long %>%
 print(head(hourly_loc_long2))
 
 # Create a shared data object
-sd <- SharedData$new(hourly_loc_long2)
+sd2 <- SharedData$new(hourly_loc_long2)
 
 # Calculate total count per hour_label
 totals <- hourly_loc_long2 %>%
@@ -809,10 +818,25 @@ totals <- hourly_loc_long2 %>%
 print(head(totals))
 
 # Create the plotly visualization
-c <- plot_ly(sd, 
+# c <- plot_ly(sd2, 
+#              x = ~hour_label, 
+#              y = ~Count, 
+#              color = ~Location, 
+#              type = "bar",
+#              hoverinfo = "text",
+#              hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}<br>Count: %{y}<extra></extra>") %>% 
+#   layout(
+#     title = "Events by Location and Hour",
+#     xaxis = list(title = "Hour of Day", tickangle = 45),
+#     yaxis = list(title = "Number of Events"),
+#     barmode = "stack",
+#     hovermode = "closest",
+#     showlegend = FALSE
+#   )
+c <- plot_ly(sd2, 
              x = ~hour_label, 
              y = ~Count, 
-             color = ~Location, 
+             color = ~Location,  # Location-based grouping for bars
              type = "bar",
              hoverinfo = "text",
              hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}<br>Count: %{y}<extra></extra>") %>% 
@@ -822,32 +846,44 @@ c <- plot_ly(sd,
     yaxis = list(title = "Number of Events"),
     barmode = "stack",
     hovermode = "closest",
-    showlegend = FALSE
+    showlegend = TRUE  # Enable legend to show locations
   )
 
 # Add total count as text labels on top of bars
+# Add total count trace as a separate text layer (No color grouping)
 c <- c %>% 
   add_trace(
-    data = totals,
+    data = totals,  # Ensure this is a separate dataset
     x = ~hour_label,
     y = ~TotalCount,
     type = "scatter",
     mode = "text",
     text = ~TotalCount,
     textposition = "top",
-    showlegend = FALSE
+    showlegend = FALSE  # Avoid adding it to the legend
   )
+# c <- c %>% 
+#   add_trace(
+#     data = totals,
+#     x = ~hour_label,
+#     y = ~TotalCount,
+#     type = "scatter",
+#     mode = "text",
+#     text = ~TotalCount,
+#     textposition = "top",
+#     showlegend = FALSE
+#   )
 
 # Create filter panel
-filter_panel <- list(
-  filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
-  filter_select("Location ", "Location", sd, ~Location, multiple = TRUE)
+filter_panel2 <- list(
+  filter_slider("Date2", "Date Range", sd2, ~Date2, width = "100%"),
+  filter_select("Location", "Location", sd2, ~Location, multiple = TRUE)
 )
 
 # Combine filters with plot
 bscols(
   widths = c(3, 9),
-  filter_panel,
+  filter_panel2,
   c
 )
 ```
