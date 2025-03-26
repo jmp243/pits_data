@@ -387,7 +387,7 @@ plot_by_location <- plot_by_location %>%
   )
 
 # Display the plot
-plot_by_location
+# plot_by_location
 ```
 
 ```{r}
@@ -770,6 +770,16 @@ bscols(
   p
 )
 ```
+## save to html
+```{r}
+library(htmlwidgets)
+
+# Save the plot as an interactive HTML file
+saveWidget(p, file = "plotly_PITS-date-location-graph.html", selfcontained = TRUE)
+
+```
+
+
 
 ```{r}
 library(plotly)
@@ -986,6 +996,7 @@ PITS_summary <- PITS_categories2 %>%
 
 print(PITS_summary)
 ```
+
 
 # parse empty categories
 
@@ -1452,8 +1463,37 @@ print(PITS_public_summary)
 # print(paste("Number of unique categories:", nrow(unique_categories)))
 
 ```
+# GRAPH for incident types
+```{r}
+library(dplyr)
+library(kableExtra)
 
-# pivot pits_public wide
+# Compute summary with percentages
+PITS_public_summary <- PITS_public %>%
+  group_by(parsed_categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(
+    percentage = round((count / sum(count)) * 100, 2)  # Calculate & round percentage
+  ) %>%
+  arrange(desc(count))  # Sort by highest count
+
+# Create a formatted table
+PITS_public_summary %>%
+  kable("html", 
+        col.names = c("Category", "Count", "Percentage (%)"), 
+        format.args = list(big.mark = ",")) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(3, color = "blue") %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#428bca")
+
+
+```
+
+## pivot pits_public wide
 ```{r}
 
 PITS_public_wide <- PITS_public %>%
@@ -1468,7 +1508,7 @@ PITS_public_wide <- PITS_public %>%
   )
 ```
 
-# create a plot for incident type and date filter 
+# PLOT for incident type and date filter 
 ```{r}
 library(plotly)
 library(dplyr)
@@ -1545,7 +1585,7 @@ bscols(
 # print(head(incident_counts))
 ```
 
-# stacked bar graph with totals
+## GRAPH with totals for incidents
 ```{r}
 # Debugging print to verify column names
 print("Column names:")
@@ -1584,10 +1624,10 @@ incident_counts_with_total <- incident_counts %>%
   left_join(total_counts, by = c("Location_Standard", "Date2", "hour_label"))
 
 # Create a shared data object
-sd <- SharedData$new(incident_counts_with_total)
+sd3 <- SharedData$new(incident_counts_with_total)
 
 # Create the plotly visualization
-p <- plot_ly(sd, 
+p3 <- plot_ly(sd3, 
              x = ~hour_label, 
              y = ~Count, 
              color = ~Incident_Type, 
@@ -1618,17 +1658,17 @@ p <- plot_ly(sd,
 #   )
 
 # Create filter panel
-filter_panel <- list(
-  filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
-  filter_select("Location_Standard", "Location", sd, ~Location_Standard, multiple = TRUE),
-  filter_select("Incident_Type", "Incident Type", sd, ~Incident_Type, multiple = TRUE)
+filter_panel3 <- list(
+  filter_slider("Date2", "Date Range", sd3, ~Date2, width = "100%"),
+  filter_select("Location_Standard", "Location", sd3, ~Location_Standard, multiple = TRUE),
+  filter_select("Incident_Type", "Incident Type", sd3, ~Incident_Type, multiple = TRUE)
 )
 
 # Combine filters with plot
 bscols(
   widths = c(3, 9),
-  filter_panel,
-  p
+  filter_panel3,
+  p3
 )
 # 
 # # Print summary for verification
