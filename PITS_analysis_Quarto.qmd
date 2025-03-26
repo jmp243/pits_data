@@ -5,7 +5,7 @@ editor: visual
 ---
 
 last updated 3/25/2025
-
+Navigating Data in Public Libraries: Challenges & Opportunities
 ## Running Code
 
 ### load libraries
@@ -761,7 +761,7 @@ var fitTheScreen = window.setInterval(function(){
 }, 1000);
 
 ```
-
+# GRAPH for location and date
 ```{r}
 # Combine filters with plot
 bscols(
@@ -1506,10 +1506,10 @@ print(incident_counts %>%
   summarise(Total_Incidents = sum(Count)))
 
 # Create a shared data object
-sd <- SharedData$new(incident_counts)
+sd2 <- SharedData$new(incident_counts)
 
 # Create the plotly visualization
-p <- plot_ly(sd, 
+p2 <- plot_ly(sd2, 
              x = ~hour_label, 
              y = ~Count, 
              color = ~Incident_Type, 
@@ -1529,17 +1529,17 @@ p <- plot_ly(sd,
   )
 
 # Create filter panel
-filter_panel <- list(
-  filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
-  filter_select("Location_Standard", "Location", sd, ~Location_Standard, multiple = TRUE),
-  filter_select("Incident_Type", "Incident Type", sd, ~Incident_Type, multiple = TRUE)
+filter_panel2 <- list(
+  filter_slider("Date2", "Date Range", sd2, ~Date2, width = "100%"),
+  filter_select("Location_Standard", "Location", sd2, ~Location_Standard, multiple = TRUE),
+  filter_select("Incident_Type", "Incident Type", sd2, ~Incident_Type, multiple = TRUE)
 )
 
 # Combine filters with plot
 bscols(
   widths = c(3, 9),
-  filter_panel,
-  p
+  filter_panel2,
+  p2
 )
 # Optional: Print out the first few rows to verify counts
 # print(head(incident_counts))
