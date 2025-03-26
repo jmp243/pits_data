@@ -268,7 +268,7 @@ PITS_2024_2025_public <- PITS_2023_2025_public %>%
 # Aggregate PITS data by location and date
 PITS_counts <- PITS_2024_2025_public %>%
   # Make sure date is in proper format
-  mutate(date = as.Date(Date)) %>%
+  mutate(date = as.Date(Date2)) %>%
   group_by(Location_Standard, date) %>%
   summarize(infraction_count = n(), .groups = "drop")
 
@@ -376,19 +376,19 @@ summary_table <- ratio_data2024 %>%
     Infractions_Per_1000_Users = round(Infractions_Per_1000_Users, 2)
   )
 
-# Create the interactive DataTable with server-side processing
-datatable(summary_table, 
-          filter = "top",
-          extensions = 'Buttons', 
-          options = list(
-            processing = TRUE,
-            serverSide = TRUE,
-            pageLength = 10,
-            lengthMenu = c(10, 25, 50, 100),
-            dom = 'Bfrtip',
-            buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-          ),
-          rownames = FALSE)
+# # Create the interactive DataTable with server-side processing
+# datatable(summary_table, 
+#           filter = "top",
+#           # extensions = 'Buttons', 
+#           options = list(
+#             processing = TRUE,
+#             serverSide = TRUE,
+#             pageLength = 10,
+#             lengthMenu = c(10, 25, 50, 100),
+#             dom = 'Bfrtip',
+#             # buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+#           ),
+#           rownames = FALSE)
 ```
 
 
