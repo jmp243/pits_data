@@ -890,12 +890,12 @@ filter_panel2 <- list(
   filter_select("Location", "Location", sd2, ~Location, multiple = TRUE)
 )
 
-# Combine filters with plot
-bscols(
-  widths = c(3, 9),
-  filter_panel2,
-  c
-)
+# # Combine filters with plot
+# bscols(
+#   widths = c(3, 9),
+#   filter_panel2,
+#   c
+# )
 ```
 
 # less aggressive parsing that works better
@@ -1323,6 +1323,7 @@ PITS_public_summary_table <- PITS_public_summary %>%
   kable("html", 
         col.names = c("Category", "Count", "Percentage (%)"), 
         format.args = list(big.mark = ",")) %>%
+   add_header_above(c("PITS Incident Category by Type (Jan 2024 - Mar 2025)" = 3)) %>%  # Add table title spanning all 4 columns
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = FALSE
