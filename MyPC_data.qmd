@@ -1,4 +1,3 @@
-
 ---
 title: "MyPC_data"
 format: html
@@ -133,6 +132,7 @@ as.list(unique(MyPC_public$Location_Standard))
 ```
 
 ## generate a consistent ID
+
 ```{r}
 generate_consistent_logins <- function(logins) {
   # Create a unique mapping of original names to masked IDs
@@ -172,6 +172,7 @@ names(MyPC_public)
 ```
 
 ## graph with plotly
+
 ```{r}
 # make tables similar to pits
 library(plotly)
@@ -197,10 +198,10 @@ hourly_usage <- MyPC_public %>%
   arrange(as.numeric(substr(hour_label, 1, 2)))
 
 # Create shared data object for filtering
-sd <- SharedData$new(hourly_usage)
+sd4 <- SharedData$new(hourly_usage)
 
 # Create the plotly visualization
-p <- plot_ly(sd, 
+p4 <- plot_ly(sd4, 
              x = ~hour_label, 
              y = ~count, 
              color = ~Location_Standard, 
@@ -232,19 +233,28 @@ p <- plot_ly(sd,
 # )
 
 # Create the filter panel correctly
-location_filter <- filter_select("location", "Location", sd, ~Location_Standard, multiple = TRUE)
-date_filter <- filter_slider("date", "Date Range", sd, ~booking_date, width = "100%")
+location_filter <- filter_select("location", "Location", sd4, ~Location_Standard, multiple = TRUE)
+date_filter <- filter_slider("date", "Date Range", sd4, ~booking_date, width = "100%")
 
 
-# Combine the filters and plot
 bscols(
   widths = c(3, 9),
-  filter_panel,
-  p
+  div(
+    location_filter,
+    date_filter
+  ),
+  p4
 )
 ```
-# create a ratio graph
 
+# bring in public pits data
+```{r}
+# library(readr)
+# PITS_2023_2025_public <- read_csv("pits2023-2025-public.csv")
+# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
+```
+
+# create a ratio table
 ```{r}
 library(dplyr)
 library(plotly)
@@ -261,10 +271,10 @@ PITS_counts <- PITS_2023_2025_public %>%
 
 # Aggregate MyPC data by location and date
 MyPC_counts <- MyPC_public %>%
-  # select(booking_date, Location_Standard) %>% 
+  # select(booking_date, Location_Standard) %>%
   # Make sure date is in proper format
   # mutate(date = as.Date(`Booking From`)) %>%
-  rename(date = booking_from) %>% 
+  rename(date = booking_from) %>%
   group_by(Location_Standard, date) %>%
   summarize(user_count = n(), .groups = "drop")
 
@@ -288,83 +298,135 @@ ratio_data <- ratio_data %>%
 
 # Step 4: Create the interactive visualization
 # Create shared data object for filtering
-sd <- SharedData$new(ratio_data)
+sd5 <- SharedData$new(ratio_data)
 
 # Create the plotly visualization
-p <- plot_ly(sd, 
-             x = ~date, 
-             y = ~ratio_percentage, 
-             color = ~Location_Standard, 
-             type = "scatter",
-             mode = "lines+markers",
-             hovertemplate = ~paste(
-               "Date: ", format(date, "%Y-%m-%d"),
-               "<br>Location: ", Location_Standard,
-               "<br>Infractions: ", infraction_count,
-               "<br>Users: ", user_count,
-               "<br>Ratio: ", sprintf("%.2f%%", ratio_percentage),
-               "<extra></extra>"
-             )) %>%
-  layout(
-    title = "Ratio of PITS Infractions to MyPC Users by Location",
-    xaxis = list(title = "Date"),
-    yaxis = list(title = "Infraction Rate (%)"),
-    hovermode = "closest"
-  )
-
-# Create the filter panel
-location_filter <- filter_select("location", "Location", sd, ~Location_Standard, multiple = TRUE)
-date_filter <- filter_slider("date", "Date Range", sd, ~date, width = "100%")
-
-# Combine the filters and plot
-bscols(
-  widths = c(3, 9),
-  div(
-    location_filter,
-    date_filter
-  ),
-  p
-)
+# p5 <- plot_ly(sd5,
+#              x = ~date,
+#              y = ~ratio_percentage,
+#              color = ~Location_Standard,
+#              type = "scatter",
+#              mode = "lines+markers",
+#              hovertemplate = ~paste(
+#                "Date: ", format(date, "%Y-%m-%d"),
+#                "<br>Location: ", Location_Standard,
+#                "<br>Infractions: ", infraction_count,
+#                "<br>Users: ", user_count,
+#                "<br>Ratio: ", sprintf("%.2f%%", ratio_percentage),
+#                "<extra></extra>"
+#              )) %>%
+#   layout(
+#     title = "Ratio of PITS Infractions to MyPC Users by Location",
+#     xaxis = list(title = "Date"),
+#     yaxis = list(title = "Infraction Rate (%)"),
+#     hovermode = "closest"
+#   )
+# 
+# # Create the filter panel
+# location_filter <- filter_select("location", "Location", sd5, ~Location_Standard, multiple = TRUE)
+# date_filter <- filter_slider("date", "Date Range", sd5, ~date, width = "100%")
+# 
+# # Combine the filters and plot
+# bscols(
+#   widths = c(3, 9),
+#   div(
+#     location_filter,
+#     date_filter
+#   ),
+#   p5
+# )
 ```
 
 
 ```{r}
-# ratio visualization 
-# Add a second plot showing the raw counts
-counts_plot <- plot_ly(sd) %>%
-  add_trace(
-    x = ~date,
-    y = ~infraction_count,
-    name = "Infractions",
-    type = "bar",
-    marker = list(color = "red")
-  ) %>%
-  add_trace(
-    x = ~date,
-    y = ~user_count,
-    name = "Users",
-    type = "bar",
-    marker = list(color = "blue")
-  ) %>%
-  layout(
-    title = "Raw Counts: Infractions vs Users",
-    xaxis = list(title = "Date"),
-    yaxis = list(title = "Count"),
-    barmode = "group"
-  )
+library(dplyr)
+library(kableExtra)
 
-# Display both plots
-bscols(
-  widths = c(3, 9),
-  div(
-    location_filter,
-    date_filter
-  ),
-  div(
-    p,
-    counts_plot
-  )
-)
+# Aggregate data to get total summary
+summary_table <- ratio_data %>%
+  group_by(Location_Standard) %>%
+  summarize(
+    Total_Users = sum(user_count, na.rm = TRUE),
+    Total_Infractions = sum(infraction_count, na.rm = TRUE),
+    Average_Daily_Users = mean(user_count, na.rm = TRUE),
+    Average_Daily_Infractions = mean(infraction_count, na.rm = TRUE)
+  ) %>%
+  # Modify Total_Users to avoid zero division
+  mutate(
+    # Replace 0 with 0.1 to avoid division by zero
+    Total_Users = ifelse(Total_Users == 0, 0.1, Total_Users),
+    
+    # Calculate Infraction Rate per 1000 users
+    Total_Infraction_Rate = (Total_Infractions / Total_Users) * 1000,
+    
+    # Round numeric columns to 2 decimal places
+    Average_Daily_Users = round(Average_Daily_Users, 2),
+    Average_Daily_Infractions = round(Average_Daily_Infractions, 2),
+    Total_Infraction_Rate = round(Total_Infraction_Rate, 2)
+  ) %>%
+  # Arrange by Total Infraction Rate in descending order
+  arrange(desc(Total_Infraction_Rate))
+
+# Create an interactive, formatted table
+summary_table %>%
+  kable("html", 
+        col.names = c(
+          "Location", 
+          "Total Users", 
+          "Total Infractions", 
+          "Avg Daily Users", 
+          "Avg Daily Infractions", 
+          "Infractions per 1000 Users"
+        )) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#428bca")
+
+# Optional: If you want to view the table in R
+print(summary_table)
+```
+
+# DO NOT RUN create a ratio graph CODE freezes computer
+```{r}
+# # ratio visualization 
+# # Add a second plot showing the raw counts
+# counts_plot <- plot_ly(sd5) %>%
+#   add_trace(
+#     x = ~date,
+#     y = ~infraction_count,
+#     name = "Infractions",
+#     type = "bar",
+#     marker = list(color = "red")
+#   ) %>%
+#   add_trace(
+#     x = ~date,
+#     y = ~user_count,
+#     name = "Users",
+#     type = "bar",
+#     marker = list(color = "blue")
+#   ) %>%
+#   layout(
+#     title = "Raw Counts: Infractions vs Users",
+#     xaxis = list(title = "Date"),
+#     yaxis = list(title = "Count"),
+#     barmode = "group"
+#   )
+# 
+# # Display both plots
+# bscols(
+#   widths = c(3, 9),
+#   div(
+#     location_filter,
+#     date_filter
+#   ),
+#   div(
+#     p5,
+#     counts_plot
+#   )
+# )
 
 ```
 
