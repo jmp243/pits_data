@@ -64,6 +64,12 @@ MyPC_public <- MyPC_public %>%
 
 ```
 
+# read in preprocessed data
+```{r}
+# MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
+# MyPC_public  <- MyPC_2023_2025_public [,-1]
+```
+
 # standardize location
 
 ```{r}
@@ -166,10 +172,6 @@ MyPC_public <- MyPC_public %>%
 names(MyPC_public)
 ```
 
-```{r}
-
-
-```
 
 ## graph with plotly
 
@@ -245,15 +247,94 @@ bscols(
   p4
 )
 ```
+# SHINY APP for my pc interactive
+```{r}
+library(shiny)
+library(plotly)
+library(dplyr)
+library(crosstalk)
+library(lubridate)
+
+
+# # Prepare the data
+# MyPC_public <- MyPC_public %>%
+#   mutate(
+#     hour_of_day = hour(booking_from),
+#     hour_label = paste0(hour_of_day, ":00")
+#   )
+# 
+# # Aggregate data
+# hourly_usage <- MyPC_public %>%
+#   group_by(hour_label, Location_Standard, booking_date) %>%
+#   summarise(count = n(), .groups = "drop") %>%
+#   arrange(as.numeric(substr(hour_label, 1, 2)))
+
+# Create a shared data object
+sd4 <- SharedData$new(hourly_usage)
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Computer Usage by Hour"),
+  sidebarLayout(
+    sidebarPanel(
+      filter_slider("booking_date", "Date Range", sd4, ~booking_date, width = "100%"),
+      filter_select("Location_Standard", "Location", sd4, ~Location_Standard, multiple = TRUE)
+    ),
+    mainPanel(
+      plotlyOutput("usage_plot")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  output$usage_plot <- renderPlotly({
+    plot_ly(sd4, 
+            x = ~hour_label, 
+            y = ~count, 
+            color = ~Location_Standard, 
+            type = "bar",
+            hovertemplate = ~paste(
+              "Hour: ", hour_label,
+              "<br>Location: ", Location_Standard,
+              "<br>Count: ", count,
+              "<br>Date: ", format(booking_date, "%Y-%m-%d"),
+              "<extra></extra>"
+            )) %>%
+      layout(
+        title = "Computer Usage by Hour of Day",
+        xaxis = list(
+          title = "Hour of Day", 
+          tickangle = 45,
+          categoryorder = "array",
+          categoryarray = paste0(0:23, ":00")
+        ),
+        yaxis = list(title = "Number of Sessions"),
+        barmode = "stack",
+        hovermode = "compare",
+        showlegend = FALSE
+      )
+  })
+}
+
+# Run the app
+shinyApp(ui, server)
+
+# http://127.0.0.1:5659/
+
+```
+
+
 
 # bring in public pits data
 ```{r}
-library(readr)
-PITS_2023_2025_public <- read_csv("pits2023-2025-public.csv")
-PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
+# library(readr)
+# PITS_2023_2025_public <- read_csv("pits2023-2025-public.csv")
+# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
 ```
 
 # create a ratio table
+
 ```{r}
 library(dplyr)
 library(plotly)
@@ -346,6 +427,7 @@ sd5 <- SharedData$new(ratio_data2024)
 ```
 
 # filterable data table
+
 ```{r}
 library(dplyr)
 library(DT)
@@ -390,7 +472,6 @@ summary_table <- ratio_data2024 %>%
 #           ),
 #           rownames = FALSE)
 ```
-
 
 ```{r}
 library(dplyr)
@@ -446,6 +527,7 @@ print(summary_table)
 ```
 
 # DO NOT RUN create a ratio graph CODE freezes computer
+
 ```{r}
 # # ratio visualization 
 # # Add a second plot showing the raw counts
