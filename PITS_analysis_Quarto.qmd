@@ -222,8 +222,9 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 
 ```{r}
 # # bring in the data
-# PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
-# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
+library(readr)
+PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
+PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
 ```
 
 # Group by hour and count events
@@ -269,7 +270,9 @@ hourly_location_summary <- PITS_2023_2025_public %>%
     names_from = c(Location_Standard),
     values_from = count,
     values_fill = 0
-  )
+  ) %>%
+  # Additional check to ensure no NAs
+  mutate_all(~ifelse(is.na(.), 0, .))
 
 
 
@@ -435,15 +438,12 @@ hourly_location_summary <- PITS_2023_2025_public %>%
     values_fill = 0
   ) %>%
   # Ensure all NA values are replaced with 0
-  mutate(across(everything(), ~replace_na(.x, 0)))
+  filter(hour_label!= 0)
 
 # Check if NA values are removed
 sum(is.na(hourly_location_summary))  # Should return 0
 ```
 
-```{r}
-
-```
 
 # Process by date chunks
 
@@ -772,10 +772,56 @@ bscols(
 ```
 ## save to html
 ```{r}
-library(htmlwidgets)
+# library(htmlwidgets)
+# library(plotly)
+# 
+# 
+# # Save as an HTML file
+# htmlwidgets::saveWidget(p, file = "plotly_PITS-date-location-graph.html",  selfcontained = TRUE)
+# 
+# # Open the file in browser
+# browseURL("plotly_PITS-date-location-graph.html")
 
-# Save the plot as an interactive HTML file
-saveWidget(p, file = "plotly_PITS-date-location-graph.html", selfcontained = TRUE)
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Interactive Plotly with Filters"),
+  sidebarLayout(
+    sidebarPanel(
+      filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+      filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+    ),
+    mainPanel(
+      plotlyOutput("plot")  # Output for the plot
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  output$plot <- renderPlotly({
+    plot_ly(sd, 
+            x = ~hour_label, 
+            y = ~Count, 
+            color = ~Location, 
+            type = "bar",  
+            hoverinfo = "text",
+            hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}") %>% 
+      layout(
+        title = "Events by Location and Hour",
+        xaxis = list(title = "Hour of Day", tickangle = 45),
+        yaxis = list(title = "Number of Events"),
+        barmode = "stack",
+        hovermode = "closest",
+        showlegend = FALSE
+      )
+  })
+}
+
+# Run the app
+shinyApp(ui, server)
+```
+
 
 ```
 
@@ -899,7 +945,6 @@ filter_panel2 <- list(
 ```
 
 # less aggressive parsing that works better
-
 ```{r}
 # 
 PITS_categories <- PITS_2023_2025_public %>%
