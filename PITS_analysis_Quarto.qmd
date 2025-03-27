@@ -4,9 +4,7 @@ format: html
 editor: visual
 ---
 
-last updated 3/25/2025
-Navigating Data in Public Libraries: Challenges & Opportunities
-## Running Code
+last updated 3/25/2025 Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
 
 ### load libraries
 
@@ -101,8 +99,7 @@ PITS_2023_2025_public$Date2 <- as.Date(PITS_2023_2025_public$Date, format = "%m/
 
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
-## Standardize Location format
+The `echo: false` option disables the printing of code (only output is displayed). \## Standardize Location format
 
 ```{r}
 # match location standard for computer use
@@ -194,7 +191,6 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
   )
 
 ```
-
 
 # hourly summary of PITS from Jan 2023 to March 2025
 
@@ -443,7 +439,6 @@ hourly_location_summary <- PITS_2023_2025_public %>%
 # Check if NA values are removed
 sum(is.na(hourly_location_summary))  # Should return 0
 ```
-
 
 # Process by date chunks
 
@@ -761,7 +756,9 @@ var fitTheScreen = window.setInterval(function(){
 }, 1000);
 
 ```
+
 # GRAPH for location and date
+
 ```{r}
 # Combine filters with plot
 bscols(
@@ -770,7 +767,9 @@ bscols(
   p
 )
 ```
-## save to html
+
+## SHINY APP for event count and location
+
 ```{r}
 # library(htmlwidgets)
 # library(plotly)
@@ -820,12 +819,8 @@ server <- function(input, output) {
 
 # Run the app
 shinyApp(ui, server)
+# http://127.0.0.1:5659/
 ```
-
-
-```
-
-
 
 ```{r}
 library(plotly)
@@ -841,6 +836,9 @@ hourly_loc_long <- hourly_location_summary %>%
     names_to = "Location",
     values_to = "Count"
   )
+```
+
+```{r}
 
 # hourly_loc_long <- hourly_location_summary %>%
 #   pivot_longer(
@@ -942,9 +940,11 @@ filter_panel2 <- list(
 #   filter_panel2,
 #   c
 # )
+
 ```
 
 # less aggressive parsing that works better
+
 ```{r}
 # 
 PITS_categories <- PITS_2023_2025_public %>%
@@ -1041,7 +1041,6 @@ PITS_summary <- PITS_categories2 %>%
 
 print(PITS_summary)
 ```
-
 
 # parse empty categories
 
@@ -1206,8 +1205,8 @@ PITS_empty_categories <- PITS_empty_categories %>%
 # head(PITS_empty_categories_wide)
 ```
 
+# EXAMPLE of type of parsing task
 ## unique counts of empty category
-
 ```{r}
 # get the various values in the list
 # Count and display unique values in category_source
@@ -1324,6 +1323,7 @@ result_df <- result_df %>%
 ```
 
 # combine dateframes with extracted categories
+
 ```{r}
 names(result_df)
 
@@ -1338,6 +1338,7 @@ PITS_public <- rbind(result_df, PITS_categories2) %>%
 ```
 
 # summarize the new categories
+
 ```{r}
 PITS_public_summary <- PITS_public %>%
   group_by(parsed_categories) %>%
@@ -1350,6 +1351,7 @@ print(PITS_public_summary)
 ```
 
 # TABLE GRAPH for incident types
+
 ```{r}
 library(dplyr)
 library(kableExtra)
@@ -1383,6 +1385,7 @@ save_kable(PITS_public_summary_table, file = "PITS_incident_type_summary_table.h
 ```
 
 ## pivot pits_public wide
+
 ```{r}
 
 PITS_public_wide <- PITS_public %>%
@@ -1397,7 +1400,8 @@ PITS_public_wide <- PITS_public %>%
   )
 ```
 
-# PLOT for incident type and date filter 
+# PLOT for incident type and date filter
+
 ```{r}
 library(plotly)
 library(dplyr)
@@ -1479,9 +1483,83 @@ bscols(
 # Save the plot as an interactive HTML file
 saveWidget(p2, file = "PITS_incidents-date-location-graph.html", selfcontained = TRUE)
 ```
+# SHINY APP for Incident Type
+```{r}
+library(shiny)
+library(plotly)
+library(dplyr)
+library(tidyr)
+library(crosstalk)
 
+
+# Prepare the data with detailed logging
+incident_counts <- PITS_public_wide %>%
+  # Select all columns except Incident ID
+  select(-`Incident ID`) %>%
+  # Melt the data to get incident types in a long format
+  pivot_longer(
+    cols = -c(Location_Standard, Date2, hour_label),
+    names_to = "Incident_Type",
+    values_to = "Incident_Presence"
+  ) %>%
+  # Filter to only include rows where the incident is present (Incident_Presence == 1)
+  filter(Incident_Presence == 1) %>%
+  # Ensure Date2 is a proper Date object
+  mutate(Date2 = as.Date(Date2)) %>%
+  # Group and count
+  group_by(Location_Standard, Date2, hour_label, Incident_Type) %>%
+  summarise(Count = sum(Incident_Presence), .groups = 'drop')
+
+# Create a shared data object for filtering
+sd2 <- SharedData$new(incident_counts)
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Incident Reports Dashboard"),
+  sidebarLayout(
+    sidebarPanel(
+      filter_slider("Date2", "Date Range", sd2, ~Date2, width = "100%"),
+      filter_select("Location_Standard", "Location", sd2, ~Location_Standard, multiple = TRUE),
+      filter_select("Incident_Type", "Incident Type", sd2, ~Incident_Type, multiple = TRUE)
+    ),
+    mainPanel(
+      plotlyOutput("incident_plot")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  output$incident_plot <- renderPlotly({
+    plot_ly(sd2, 
+            x = ~hour_label, 
+            y = ~Count, 
+            color = ~Incident_Type, 
+            type = "bar",
+            text = ~paste("Hour: ", hour_label,
+                          "<br>Location: ", Location_Standard,
+                          "<br>Incident Type: ", Incident_Type,
+                          "<br>Date: ", Date2),
+            hoverinfo = "text") %>% 
+      layout(
+        title = "Incidents by Location, Hour, and Type",
+        xaxis = list(title = "Hour of Day", tickangle = 45),
+        yaxis = list(title = "Number of Incidents"),
+        barmode = "stack",
+        hovermode = "compare"
+      )
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui, server)
+
+#http://127.0.0.1:5659/
+
+```
 
 ## GRAPH with totals for incidents
+
 ```{r}
 # Debugging print to verify column names
 print("Column names:")
@@ -1588,7 +1666,6 @@ bscols(
 ```
 
 ## Write csv
-
 ```{r}
 write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
 ```
