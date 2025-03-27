@@ -4,7 +4,8 @@ format: html
 editor: visual
 ---
 
-last updated 3/25/2025 Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
+last updated 3/26/2025 
+# Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
 
 ### load libraries
 

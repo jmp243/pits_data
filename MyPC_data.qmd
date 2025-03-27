@@ -389,7 +389,7 @@ ratio_data2024 <- ratio_data2024 %>%
 # Create shared data object for filtering
 sd5 <- SharedData$new(ratio_data2024)
 
-# Create the plotly visualization
+# # Create the plotly visualization
 # p5 <- plot_ly(sd5,
 #              x = ~date,
 #              y = ~ratio_percentage,
@@ -503,8 +503,11 @@ summary_table <- ratio_data2024 %>%
   # Arrange by Infractions per 1000 Users in descending order
   arrange(desc(Infractions_Per_1000_Users)) 
 
+# Optional: If you want to view the table in R
+print(summary_table)
+
 # Create an interactive, formatted table
-summary_table %>%
+table_html <- summary_table %>%
   kable("html", 
         col.names = c(
           "Location", 
@@ -521,10 +524,74 @@ summary_table %>%
   column_spec(1, bold = TRUE) %>%
   row_spec(0, bold = TRUE, color = "white", background = "#428bca")
 
-# Optional: If you want to view the table in R
-print(summary_table)
+
+# # Save as an HTML file
+# htmlwidgets::saveWidget(summary_table, file = "summary_table.html",  selfcontained = TRUE)
+# 
+# # Open the file in browser
+# browseURL("summary_table.htm")
 
 ```
+
+# TABLE open in browser
+```{r}
+library(dplyr)
+library(kableExtra)
+library(htmltools)
+
+# Aggregate data
+summary_table2 <- ratio_data2024 %>%
+  group_by(Location_Standard) %>%
+  summarize(
+    Total_Users = sum(user_count, na.rm = TRUE),
+    Total_Infractions = sum(infraction_count, na.rm = TRUE),
+    Average_Daily_Users = mean(user_count, na.rm = TRUE),
+    Average_Daily_Infractions = mean(infraction_count, na.rm = TRUE),
+    Infractions_Per_1000_Users = ifelse(Total_Users > 0, (Total_Infractions / Total_Users) * 1000, 0)
+  ) %>%
+  mutate(
+    Total_Users = round(ifelse(Total_Users == 0, 0.1, Total_Users), 0),
+    Average_Daily_Users = round(Average_Daily_Users, 2),
+    Average_Daily_Infractions = round(Average_Daily_Infractions, 2),
+    Infractions_Per_1000_Users = round(Infractions_Per_1000_Users, 2)
+  ) %>%
+  arrange(desc(Infractions_Per_1000_Users)) 
+
+# Create a properly formatted kable table
+table_html <- summary_table2 %>%
+  kable("html", 
+        col.names = c(
+          "Location", "Total Users", "Total Infractions", 
+          "Avg Daily Users", "Avg Daily Infractions", "Infractions per 1000 Users"
+        )) %>%
+   add_header_above(c("PITS Incidents per 1000 PC Users (Jan 2024 - Mar 2025)" = 6)) %>%  # Add table title spanning all 4 columns
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#428bca")
+
+# Wrap it in a full HTML document
+html_page <- htmltools::HTML(
+  paste0(
+    "<html><head><meta charset='UTF-8'><title>Summary Table</title>",
+    "<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css'>",
+    "</head><body style='margin: 20px;'>",
+    as.character(table_html),
+    "</body></html>"
+  )
+)
+
+# Save the table as an HTML file
+html_file <- "MyPC_PITS_summary_table.html"
+writeLines(as.character(html_page), html_file)
+
+# Open in browser
+browseURL(html_file)
+
+```
+
 
 # DO NOT RUN create a ratio graph CODE freezes computer
 
