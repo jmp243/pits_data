@@ -323,7 +323,10 @@ shinyApp(ui, server)
 # http://127.0.0.1:5659/
 
 ```
-
+# deploy shiny app
+```{r}
+library(rsconnect)
+```
 
 
 # bring in public pits data

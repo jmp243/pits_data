@@ -772,17 +772,7 @@ bscols(
 ## SHINY APP for event count and location
 
 ```{r}
-# library(htmlwidgets)
-# library(plotly)
-# 
-# 
-# # Save as an HTML file
-# htmlwidgets::saveWidget(p, file = "plotly_PITS-date-location-graph.html",  selfcontained = TRUE)
-# 
-# # Open the file in browser
-# browseURL("plotly_PITS-date-location-graph.html")
-
-
+# PITS Data with Event and Location
 # Define UI
 ui <- fluidPage(
   titlePanel("Interactive Plotly with Filters"),
@@ -1349,6 +1339,7 @@ PITS_public_summary <- PITS_public %>%
 print(PITS_public_summary)
 
 
+
 ```
 
 # TABLE GRAPH for incident types
@@ -1357,6 +1348,7 @@ print(PITS_public_summary)
 library(dplyr)
 library(kableExtra)
 
+library(ggpubr)
 # Compute summary with percentages
 PITS_public_summary <- PITS_public %>%
   group_by(parsed_categories) %>%
@@ -1366,12 +1358,17 @@ PITS_public_summary <- PITS_public %>%
   ) %>%
   arrange(desc(count))  # Sort by highest count
 
+# Convert to ggtexttable and save
+p <- ggtexttable(PITS_public_summary, rows = NULL, theme = ttheme("light"))
+
+ggsave("PITS_public_summary_table.png", plot = p, width = 12, height = 8, dpi = 300)
+
 # Create a formatted table
 PITS_public_summary_table <- PITS_public_summary %>%
   kable("html", 
         col.names = c("Category", "Count", "Percentage (%)"), 
         format.args = list(big.mark = ",")) %>%
-   add_header_above(c("PITS Incident Category by Type (Jan 2024 - Mar 2025)" = 3)) %>%  # Add table title spanning all 4 columns
+   add_header_above(c("PITS Incident Category by Type (Jan 2023 - Mar 2025)" = 3)) %>%  # Add table title spanning all 4 columns
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = FALSE
@@ -1381,6 +1378,7 @@ PITS_public_summary_table <- PITS_public_summary %>%
   row_spec(0, bold = TRUE, color = "white", background = "#428bca")
 
 save_kable(PITS_public_summary_table, file = "PITS_incident_type_summary_table.html")
+
 
 
 ```
