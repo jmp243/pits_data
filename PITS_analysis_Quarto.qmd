@@ -22,19 +22,19 @@ library(lubridate)
 
 ```{r}
 # read in data
-PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2023.csv")
-PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
-PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
-
-PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2024.csv")
-
-PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
-
-PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March19_2025.csv")
-PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
-
-# merge the years
-PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
+# PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2023.csv")
+# PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
+# PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
+# 
+# PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2024.csv")
+# 
+# PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
+# 
+# PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March19_2025.csv")
+# PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
+# 
+# # merge the years
+# PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
 
 ```
 
@@ -768,6 +768,12 @@ bscols(
   p
 )
 ```
+# Deploy Shiny APP
+```{r}
+library(rsconnect)
+    rsconnect::deployApp('/Users/jungmeepark/Documents/PCPL/data-analysis/pits_data/Pits_project_mac')
+```
+
 
 ## SHINY APP for event count and location
 
@@ -775,7 +781,7 @@ bscols(
 # PITS Data with Event and Location
 # Define UI
 ui <- fluidPage(
-  titlePanel("Interactive Plotly with Filters"),
+  titlePanel("PITS with Event and Location"),
   sidebarLayout(
     sidebarPanel(
       filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
@@ -811,7 +817,11 @@ server <- function(input, output) {
 # Run the app
 shinyApp(ui, server)
 # http://127.0.0.1:5659/
+# deployApp()
+# 
+rsconnect::writeManifest()
 ```
+
 
 ```{r}
 library(plotly)

@@ -7,13 +7,13 @@ editor: visual
 ```{r}
 library(readr)
 library(tidyverse)
-MyPC_2023 <- read_csv("~/data librarian/MyPC_data/MyPC_2023_siteAndLocationUsage.csv", 
-                      skip = 15)
-MyPC_2024 <- read_csv("~/data librarian/MyPC_data/MyPC_2024_siteAndLocationUsage.csv", 
-                      skip = 15)
-MyPC_2025 <- read_csv("~/data librarian/MyPC_data/MyPC_Mar19_2025_siteAndLocationUsage.csv", 
-                      skip = 15)
-MyPC_all <- rbind(MyPC_2023, MyPC_2024, MyPC_2025)
+# MyPC_2023 <- read_csv("~/data librarian/MyPC_data/MyPC_2023_siteAndLocationUsage.csv", 
+#                       skip = 15)
+# MyPC_2024 <- read_csv("~/data librarian/MyPC_data/MyPC_2024_siteAndLocationUsage.csv", 
+#                       skip = 15)
+# MyPC_2025 <- read_csv("~/data librarian/MyPC_data/MyPC_Mar19_2025_siteAndLocationUsage.csv", 
+#                       skip = 15)
+# MyPC_all <- rbind(MyPC_2023, MyPC_2024, MyPC_2025)
 
 # View(MyPC_2023)
 ```
