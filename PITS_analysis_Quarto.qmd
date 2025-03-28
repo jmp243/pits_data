@@ -4,8 +4,7 @@ format: html
 editor: visual
 ---
 
-last updated 3/26/2025 
-# Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
+last updated 3/26/2025 \# Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
 
 ### load libraries
 
@@ -16,25 +15,29 @@ library(tidyverse)
 library(readr)
 library(crosstalk)
 library(lubridate)
+library(quarto)
+library(rsconnect)
+    # rsconnect::deployApp('/Users/jungmeepark/Documents/PCPL/data-analysis/pits_data/Pits_project_mac')
+    # rsconnect::writeManifest()
 ```
 
 ## Read in PITS data
 
 ```{r}
 # read in data
-# PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2023.csv")
-# PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
-# PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
-# 
-# PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2024.csv")
-# 
-# PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
-# 
-# PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March19_2025.csv")
-# PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
-# 
-# # merge the years
-# PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
+PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2023.csv")
+PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
+PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
+
+PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_2024.csv")
+
+PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)]
+
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March19_2025.csv")
+PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
+
+# merge the years
+PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
 
 ```
 
@@ -84,10 +87,19 @@ PITS_2023_2025 <- PITS_2023_2025 %>%
 
 ```{r}
 # save a copy of the data without discerning columns
-PITS_2023_2025_public <- 
+PITS_2023_2025_public <-
   PITS_2023_2025 %>%
   select(-Reporter, -People, -Followup, -Description)
 
+```
+
+## Read in preprocessed data
+
+```{r}
+# # bring in the data
+library(readr)
+PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
+PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
 ```
 
 ## Add datetime PITS data
@@ -96,7 +108,6 @@ PITS_2023_2025_public <-
 #| echo: false
 # change date 
 PITS_2023_2025_public$Date2 <- as.Date(PITS_2023_2025_public$Date, format = "%m/%d/%Y")
-
 
 ```
 
@@ -768,12 +779,14 @@ bscols(
   p
 )
 ```
+
 # Deploy Shiny APP
+
 ```{r}
 library(rsconnect)
-    rsconnect::deployApp('/Users/jungmeepark/Documents/PCPL/data-analysis/pits_data/Pits_project_mac')
+    # # rsconnect::deployApp('/Users/jungmeepark/Documents/PCPL/data-analysis/pits_data/Pits_project_mac')
+    # rsconnect::writeManifest()
 ```
-
 
 ## SHINY APP for event count and location
 
@@ -821,7 +834,6 @@ shinyApp(ui, server)
 # 
 rsconnect::writeManifest()
 ```
-
 
 ```{r}
 library(plotly)
@@ -1207,7 +1219,9 @@ PITS_empty_categories <- PITS_empty_categories %>%
 ```
 
 # EXAMPLE of type of parsing task
+
 ## unique counts of empty category
+
 ```{r}
 # get the various values in the list
 # Count and display unique values in category_source
@@ -1492,7 +1506,9 @@ bscols(
 # Save the plot as an interactive HTML file
 saveWidget(p2, file = "PITS_incidents-date-location-graph.html", selfcontained = TRUE)
 ```
+
 # SHINY APP for Incident Type
+
 ```{r}
 library(shiny)
 library(plotly)
@@ -1500,8 +1516,7 @@ library(dplyr)
 library(tidyr)
 library(crosstalk)
 
-
-# Prepare the data with detailed logging
+# Data with detailed logging
 incident_counts <- PITS_public_wide %>%
   # Select all columns except Incident ID
   select(-`Incident ID`) %>%
@@ -1675,6 +1690,7 @@ bscols(
 ```
 
 ## Write csv
+
 ```{r}
 write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
 ```
