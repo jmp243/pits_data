@@ -16,7 +16,7 @@ library(readr)
 library(crosstalk)
 library(lubridate)
 library(quarto)
-library(rsconnect)
+# library(rsconnect)
     # rsconnect::deployApp('/Users/jungmeepark/Documents/PCPL/data-analysis/pits_data/Pits_project_mac')
     # rsconnect::writeManifest()
 ```
@@ -171,9 +171,9 @@ PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
 ```{r}
 # Using rowwise() to parse time
 
-# remove NA times
-# PITS_2023_2025_public <- PITS_2023_2025_public %>% 
-#   filter(!is.na(Time))
+remove NA times
+PITS_2023_2025_public <- PITS_2023_2025_public %>%
+  filter(!is.na(Time))
 
 PITS_2023_2025_public <- PITS_2023_2025_public %>%
   rowwise() %>%
@@ -226,8 +226,8 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
   filter(!is.na(Date))
 ```
 
+# START
 ## Read in preprocessed data
-
 ```{r}
 # # bring in the data
 library(readr)

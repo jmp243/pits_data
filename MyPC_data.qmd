@@ -33,8 +33,13 @@ Convert id into character
 MyPC_public$`Login ID` <- as.character(MyPC_public$`Login ID`)
 ```
 
-# create a new column to parse out the date
 
+```{r}
+# MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
+# MyPC_public  <- MyPC_public[,-1]
+```
+
+# create a new column to parse out the date
 ```{r}
 library(lubridate)
 
@@ -64,11 +69,6 @@ MyPC_public <- MyPC_public %>%
 
 ```
 
-# read in preprocessed data
-```{r}
-# MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
-# MyPC_public  <- MyPC_2023_2025_public [,-1]
-```
 
 # standardize location
 
@@ -131,10 +131,11 @@ MyPC_public <- standardize_dataset(MyPC_public, "Location")
 as.list(unique(MyPC_public$Location_Standard))
 ```
 
+# START
 ```{r}
-# # Open MyPC data
-# MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
-# MyPC_public <- MyPC_public[,-1]  
+# Open MyPC data
+MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
+MyPC_public <- MyPC_public[,-1]
 ```
 
 ## generate a consistent ID
@@ -172,9 +173,14 @@ MyPC_public <- MyPC_public %>%
 names(MyPC_public)
 ```
 
+# START
+```{r}
+# Open MyPC data
+MyPC_public <- read_csv("data/MyPC_2023-2025-public.csv")
+MyPC_public <- MyPC_public[,-1]
+```
 
 ## graph with plotly
-
 ```{r}
 # make tables similar to pits
 library(plotly)
@@ -321,7 +327,7 @@ server <- function(input, output) {
 shinyApp(ui, server)
 
 # http://127.0.0.1:5659/
-
+# rsconnect::writeManifest()
 ```
 # deploy shiny app
 ```{r}
@@ -393,40 +399,40 @@ ratio_data2024 <- ratio_data2024 %>%
 sd5 <- SharedData$new(ratio_data2024)
 
 # # Create the plotly visualization
-# p5 <- plot_ly(sd5,
-#              x = ~date,
-#              y = ~ratio_percentage,
-#              color = ~Location_Standard,
-#              type = "scatter",
-#              mode = "lines+markers",
-#              hovertemplate = ~paste(
-#                "Date: ", format(date, "%Y-%m-%d"),
-#                "<br>Location: ", Location_Standard,
-#                "<br>Infractions: ", infraction_count,
-#                "<br>Users: ", user_count,
-#                "<br>Ratio: ", sprintf("%.2f%%", ratio_percentage),
-#                "<extra></extra>"
-#              )) %>%
-#   layout(
-#     title = "Ratio of PITS Infractions to MyPC Users by Location",
-#     xaxis = list(title = "Date"),
-#     yaxis = list(title = "Infraction Rate (%)"),
-#     hovermode = "closest"
-#   )
-# 
-# # Create the filter panel
-# location_filter <- filter_select("location", "Location", sd5, ~Location_Standard, multiple = TRUE)
-# date_filter <- filter_slider("date", "Date Range", sd5, ~date, width = "100%")
-# 
-# # Combine the filters and plot
-# bscols(
-#   widths = c(3, 9),
-#   div(
-#     location_filter,
-#     date_filter
-#   ),
-#   p5
-# )
+p5 <- plot_ly(sd5,
+             x = ~date,
+             y = ~ratio_percentage,
+             color = ~Location_Standard,
+             type = "scatter",
+             mode = "lines+markers",
+             hovertemplate = ~paste(
+               "Date: ", format(date, "%Y-%m-%d"),
+               "<br>Location: ", Location_Standard,
+               "<br>Infractions: ", infraction_count,
+               "<br>Users: ", user_count,
+               "<br>Ratio: ", sprintf("%.2f%%", ratio_percentage),
+               "<extra></extra>"
+             )) %>%
+  layout(
+    title = "Ratio of PITS Infractions to MyPC Users by Location",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Infraction Rate (%)"),
+    hovermode = "closest"
+  )
+
+# Create the filter panel
+location_filter <- filter_select("location", "Location", sd5, ~Location_Standard, multiple = TRUE)
+date_filter <- filter_slider("date", "Date Range", sd5, ~date, width = "100%")
+
+# Combine the filters and plot
+bscols(
+  widths = c(3, 9),
+  div(
+    location_filter,
+    date_filter
+  ),
+  p5
+)
 ```
 
 # filterable data table
@@ -475,13 +481,13 @@ summary_table <- ratio_data2024 %>%
 #           ),
 #           rownames = FALSE)
 ```
-
+# KableExtra Table for ratio
 ```{r}
 library(dplyr)
 library(kableExtra)
 
 # Aggregate data to get total summary
-summary_table <- ratio_data2024 %>%
+ratio_summary_table <- ratio_data2024 %>%
   group_by(Location_Standard) %>%
   summarize(
     Total_Users = sum(user_count, na.rm = TRUE),
@@ -510,14 +516,14 @@ summary_table <- ratio_data2024 %>%
 print(summary_table)
 
 # Create an interactive, formatted table
-table_html <- summary_table %>%
+ratio_html <- ratio_summary_table %>%
   kable("html", 
         col.names = c(
           "Location", 
           "Total Users", 
           "Total Infractions", 
           "Avg Daily Users", 
-          "Avg Daily Infractions", 
+          # "Avg Daily Infractions", 
           "Infractions per 1000 Users"
         )) %>%
   kable_styling(
@@ -525,12 +531,13 @@ table_html <- summary_table %>%
     full_width = FALSE
   ) %>%
   column_spec(1, bold = TRUE) %>%
+  column_spec(5, color = "blue") %>%
   row_spec(0, bold = TRUE, color = "white", background = "#428bca")
 
 
 # # Save as an HTML file
-# htmlwidgets::saveWidget(summary_table, file = "summary_table.html",  selfcontained = TRUE)
-# 
+htmlwidgets::saveWidget(ratio_summary_table, file = "ratio_summary_table.html",  selfcontained = TRUE)
+
 # # Open the file in browser
 # browseURL("summary_table.htm")
 
@@ -549,13 +556,13 @@ summary_table2 <- ratio_data2024 %>%
     Total_Users = sum(user_count, na.rm = TRUE),
     Total_Infractions = sum(infraction_count, na.rm = TRUE),
     Average_Daily_Users = mean(user_count, na.rm = TRUE),
-    Average_Daily_Infractions = mean(infraction_count, na.rm = TRUE),
+    # Average_Daily_Infractions = mean(infraction_count, na.rm = TRUE),
     Infractions_Per_1000_Users = ifelse(Total_Users > 0, (Total_Infractions / Total_Users) * 1000, 0)
   ) %>%
   mutate(
     Total_Users = round(ifelse(Total_Users == 0, 0.1, Total_Users), 0),
     Average_Daily_Users = round(Average_Daily_Users, 2),
-    Average_Daily_Infractions = round(Average_Daily_Infractions, 2),
+    # Average_Daily_Infractions = round(Average_Daily_Infractions, 2),
     Infractions_Per_1000_Users = round(Infractions_Per_1000_Users, 2)
   ) %>%
   arrange(desc(Infractions_Per_1000_Users)) 
@@ -565,14 +572,15 @@ table_html <- summary_table2 %>%
   kable("html", 
         col.names = c(
           "Location", "Total Users", "Total Infractions", 
-          "Avg Daily Users", "Avg Daily Infractions", "Infractions per 1000 Users"
+          "Avg Daily Users", "Infractions per 1000 Users"
         )) %>%
-   add_header_above(c("PITS Incidents per 1000 PC Users (Jan 2024 - Mar 2025)" = 6)) %>%  # Add table title spanning all 4 columns
+   add_header_above(c("PITS Incidents per 1000 PC Users (Jan 2024 - Mar 2025)" = 5)) %>%  # Add table title spanning all 4 columns
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = FALSE
   ) %>%
   column_spec(1, bold = TRUE) %>%
+  column_spec(5, color = "blue") %>%
   row_spec(0, bold = TRUE, color = "white", background = "#428bca")
 
 # Wrap it in a full HTML document
@@ -599,42 +607,42 @@ browseURL(html_file)
 # DO NOT RUN create a ratio graph CODE freezes computer
 
 ```{r}
-# # ratio visualization 
-# # Add a second plot showing the raw counts
-# counts_plot <- plot_ly(sd5) %>%
-#   add_trace(
-#     x = ~date,
-#     y = ~infraction_count,
-#     name = "Infractions",
-#     type = "bar",
-#     marker = list(color = "red")
-#   ) %>%
-#   add_trace(
-#     x = ~date,
-#     y = ~user_count,
-#     name = "Users",
-#     type = "bar",
-#     marker = list(color = "blue")
-#   ) %>%
-#   layout(
-#     title = "Raw Counts: Infractions vs Users",
-#     xaxis = list(title = "Date"),
-#     yaxis = list(title = "Count"),
-#     barmode = "group"
-#   )
-# 
-# # Display both plots
-# bscols(
-#   widths = c(3, 9),
-#   div(
-#     location_filter,
-#     date_filter
-#   ),
-#   div(
-#     p5,
-#     counts_plot
-#   )
-# )
+# ratio visualization
+# Add a second plot showing the raw counts
+counts_plot <- plot_ly(sd5) %>%
+  add_trace(
+    x = ~date,
+    y = ~infraction_count,
+    name = "Infractions",
+    type = "bar",
+    marker = list(color = "red")
+  ) %>%
+  add_trace(
+    x = ~date,
+    y = ~user_count,
+    name = "Users",
+    type = "bar",
+    marker = list(color = "blue")
+  ) %>%
+  layout(
+    title = "Raw Counts: Infractions vs Users",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "Count"),
+    barmode = "group"
+  )
+
+# Display both plots
+bscols(
+  widths = c(3, 9),
+  div(
+    location_filter,
+    date_filter
+  ),
+  div(
+    p5,
+    counts_plot
+  )
+)
 
 ```
 
