@@ -4,7 +4,9 @@ format: html
 editor: visual
 ---
 
-last updated 3/26/2025 \# Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
+last updated 3/26/2025 
+# Navigating Data in Public Libraries: Challenges & Opportunities 
+## Running Code
 
 ### load libraries
 
@@ -792,6 +794,7 @@ library(rsconnect)
 
 ```{r}
 # PITS Data with Event and Location
+library(shiny)
 # Define UI
 ui <- fluidPage(
   titlePanel("PITS with Event and Location"),
@@ -1503,12 +1506,11 @@ bscols(
 
 ```{r}
 
-# Save the plot as an interactive HTML file
-saveWidget(p2, file = "PITS_incidents-date-location-graph.html", selfcontained = TRUE)
+# # Save the plot as an interactive HTML file
+# saveWidget(p2, file = "PITS_incidents-date-location-graph.html", selfcontained = TRUE)
 ```
 
 # SHINY APP for Incident Type
-
 ```{r}
 library(shiny)
 library(plotly)
@@ -1516,7 +1518,7 @@ library(dplyr)
 library(tidyr)
 library(crosstalk)
 
-# Data with detailed logging
+# INcident counts data from wide pits data
 incident_counts <- PITS_public_wide %>%
   # Select all columns except Incident ID
   select(-`Incident ID`) %>%
@@ -1693,4 +1695,11 @@ bscols(
 
 ```{r}
 write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
+```
+
+
+## Write csv
+
+```{r}
+write.csv(PITS_categories2, "pits_categories2.csv")
 ```

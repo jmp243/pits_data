@@ -9,6 +9,7 @@ editor: visual
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
 ## Running Code
+
 ```{r}
 # load libraries 
 
@@ -17,7 +18,6 @@ library(readr)
 library(tidyr)
 library(lubridate)
 ```
-
 
 ```{r}
 # read in data
@@ -45,7 +45,6 @@ PITS_ListIncidents_Jan2025 %>% summarise(count = n_distinct(Reporter))
 # as.list(unique(PITS_ListIncidents_Jan2025$Reporter))
 
 ```
-
 
 ```{r}
 # Generate unique alternate IDs
@@ -83,6 +82,7 @@ PITS_ListIncidents_Jan2025$Date2 <- as.Date(PITS_ListIncidents_Jan2025$Date, for
 ```
 
 The `echo: false` option disables the printing of code (only output is displayed).
+
 ```{r}
 library(hms) 
 # Function to process time values including HMS format
@@ -162,12 +162,10 @@ str(All_activities_Jan2025$JAN2025_Location)
 str(Circulation_Jan2025$Location)
 ```
 
-
 ```{r}
 # # read in gate count data
 # Gate_Count_for_Jan_2024_Jan_2025 <- read_csv("~/data librarian/Wids_data/Gate Count for Jan 2024 - Jan 2025.csv")
 ```
-
 
 ```{r}
 # location name consistency 
@@ -238,8 +236,6 @@ gate_count_Jan2025 <- standardize_dataset(gate_count_Jan2025, "Location")
 
 ```
 
-
-
 ```{r}
 
 # subset data to 2024
@@ -274,12 +270,10 @@ PITS_ListIncidents_Jan2025 %>%
 
 ```
 
-
 ```{r}
 
 #   
 ```
-
 
 ```{r}
 # Combine data
@@ -300,14 +294,12 @@ PITS_ListIncidents_Jan2025 %>%
 
 ```
 
-
 ```{r}
 # Relocate columns containing "JAN2025_" to the end of the dataframe
 combined_Jan2025_data <- combined_Jan2025_data %>%
   relocate(contains("JAN2025_"), .after = last_col())
 
 ```
-
 
 ```{r}
 # save a copy of the data without discerning columns
@@ -318,4 +310,3 @@ PITS_2023_2024_public <-
 write.csv(PITS_2023_2024, "pits2023-2024-public.csv")
 
 ```
-
