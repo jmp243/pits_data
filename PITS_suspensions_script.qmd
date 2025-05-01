@@ -1,0 +1,1643 @@
+---
+title: "PITS_quarto"
+format: html
+editor: visual
+---
+
+last updated 4/29/2025 
+# Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
+
+### load libraries
+
+```{r}
+# load libraries 
+library(plotly)
+library(tidyverse)
+library(readr)
+library(crosstalk)
+library(lubridate)
+```
+
+## Read in PITS data
+
+```{r}
+# read in data
+PITS_ListIncidents_2023 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_2023.csv")
+PITS_ListIncidents_2023$`Incident ID` <- as.character(PITS_ListIncidents_2023$`Incident ID`)
+PITS_ListIncidents_2023$Time <- as.character(PITS_ListIncidents_2023$Time)
+
+PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_2024.csv")
+
+PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(19:23)] 
+
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_Jan-April29_2025.csv")
+PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
+
+# merge the years
+PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
+
+# read in suspension data
+PITS_susp <- read_csv("~/data librarian/PITS_Data/PITS_ListSuspensions2023_april29_2025.csv")
+PITS_susp$`Incident ID` <- as.character(PITS_susp$`Incident ID`)
+
+# left join suspensions to incidents
+PITS_2023_2025 <- PITS_2023_2025 %>% left_join(PITS_susp)
+
+```
+
+```{r}
+# Turn follow-up into a binary 
+# none versus other text
+PITS_2023_2025 <- PITS_2023_2025 %>% 
+  mutate(Followup_binary = ifelse(Followup == "NONE", 0, 1))
+
+```
+
+```{r}
+# save a copy of the data without discerning columns
+PITS_2023_2025_public <- 
+  PITS_2023_2025 %>%
+  select(-Reporter, -People, -Followup, -Description)
+
+```
+
+## Add datetime PITS data
+
+```{r}
+#| echo: false
+# change date 
+PITS_2023_2025_public$Date2 <- as.Date(PITS_2023_2025_public$Date, format = "%m/%d/%Y")
+
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed). \## Standardize Location format
+
+```{r}
+# match location standard for computer use
+# location name consistency 
+# Create a master location mapping table
+location_mapping <- data.frame(
+  standard_name = c(
+    "Joel D. Valdez-Main", "Himmel Park", "Murphy-Wilmot", "Woods Memorial",
+    "Valencia", "Martha Cooper", "Flowing Wells", "Sahuarita",
+    "Wheeler Taft Abbett", "Miller-Golf Links", "Eckstrom-Columbus",
+    "Santa Rosa", "Sam Lena-South Tucson", "Oro Valley", "Quincie Douglas",
+    "Bookmobile/Readrunners", "Caviglia-Arivaca", "Dewhirst-Catalina", 
+    "Dusenberry-River", "El Rio", "Frank De La Cruz-El Pueblo",
+    "Joyner-Green Valley", "Kirk-Bear Canyon", "Nanini", 
+    "Richard Elias-Mission", "Salazar-Ajo", "Southwest",
+    "W. Anne Gibson-Esmond Station", "Web Renewal"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# Function to standardize location names
+standardize_location <- function(location) {
+  # Remove common suffixes
+  location <- gsub(" Branch Library$|\\s+Library$", "", location)
+  
+  # Handle specific cases
+  location <- gsub("^Joel Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Joel D Valdez Main$", "Joel D. Valdez-Main", location)
+  location <- gsub("^Bookmobile-Readrunners$", "Bookmobile/Readrunners", location)
+  location <- gsub("^Quincie Douglas$", "Quincie Douglas", location)
+  location <- gsub("^Virtual Library$", "Web Renewal", location)
+  
+  # Return the standardized name
+  return(location)
+}
+
+# Apply standardization to each dataset
+standardize_dataset <- function(df, location_col_name) {
+  if(location_col_name %in% colnames(df)) {
+    df$Location_Standard <- standardize_location(df[[location_col_name]])
+    return(df)
+  } else {
+    warning(paste("Column", location_col_name, "not found in dataset"))
+    return(df)
+  }
+}
+
+# Apply to all three datasets
+PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
+# last52weeks_circ <- standardize_dataset(last52weeks_circ, "Location")
+# last52weeks_comp <- standardize_dataset(last52weeks_comp, "Location")
+
+```
+
+# Clean up the Time format in PITS
+
+```{r}
+# Using rowwise() to parse time
+
+# remove NA times
+# PITS_2023_2025_public <- PITS_2023_2025_public %>% 
+#   filter(!is.na(Time))
+
+PITS_2023_2025_public <- PITS_2023_2025_public %>%
+  rowwise() %>%
+  mutate(
+    # Process one row at a time
+    time_parsed = {
+      time_str <- Time
+      if (is.na(time_str) || !is.character(time_str)) {
+        NA
+      } else if (grepl("AM|PM", time_str, ignore.case = TRUE)) {
+        parse_date_time(time_str, orders = c("I:M p", "H:M p"))
+      } else if (grepl(":", time_str, fixed = TRUE)) {
+        if (length(gregexpr(":", time_str)[[1]]) == 2) {
+          parse_date_time(time_str, orders = "H:M:S")
+        } else {
+          parse_date_time(time_str, orders = "H:M")
+        }
+      } else {
+        NA
+      }
+    }
+  ) %>%
+  ungroup() %>%
+  mutate(
+    time_24h = format(time_parsed, "%H:%M:%S"),
+    time_12h = format(time_parsed, "%I:%M:%S %p")
+  )
+
+```
+
+# hourly summary of PITS from Jan 2023 to March 2025
+
+```{r}
+# group pits incidents by the hour
+
+# Assuming your data is in a data frame called 'df' with a column 'timestamp'
+# Group by hour
+PITS_2023_2025_public$hour_group <- floor_date(PITS_2023_2025_public$time_parsed, 
+                                               unit = "hour")
+
+# For visualization/labeling, you can format the hour
+# PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00-%H:59")
+
+PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00")
+# 
+#     hour_of_day = hour(booking_from),
+#     hour_label = paste0(hour_of_day, ":00")
+
+```
+
+```{r}
+# remove NA dates
+PITS_2023_2025_public <- PITS_2023_2025_public %>% 
+  filter(!is.na(Date))
+```
+
+## Read in preprocessed data
+
+```{r}
+# # bring in the data
+library(readr)
+# PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
+# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
+```
+
+# Group by hour and count events
+
+```{r}
+# # Group by hour and count events
+hourly_summary <- PITS_2023_2025_public %>%
+  select(hour_label, Location, Infractions, time_parsed, Date2) %>%
+  # mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
+  group_by(hour_label) %>%
+  summarize(
+    Total_Hourly_Count = n(),
+    # other aggregate metrics as needed
+  )
+
+hourly_location_date_summary <- PITS_2023_2025_public %>%
+  select(hour_label, hour_group, Location_Standard, time_parsed, Date2) %>%
+  # Group by date as well as hour and location
+  group_by(Date2, hour_label, Location_Standard) %>%
+  summarize(
+    count = n(),
+    .groups = "drop"
+  ) %>%
+  # Create a wide format with Location combinations as columns
+  pivot_wider(
+    id_cols = c(Date2, hour_label),  # Keep Date2 as an identifier column
+    names_from = Location_Standard,
+    values_from = count,
+    values_fill = 0
+  )
+
+# more information 
+hourly_location_summary <- PITS_2023_2025_public %>%
+  select(hour_label, hour_group, Location_Standard, time_parsed, Date2) %>% 
+  # mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
+  group_by(hour_label, Location_Standard) %>%
+  summarize(
+    count = n(),
+    .groups = "drop"
+  ) %>%
+  # Create a wide format with Location combinations as columns
+  pivot_wider(
+    names_from = c(Location_Standard),
+    values_from = count,
+    values_fill = 0
+  ) %>%
+  # Additional check to ensure no NAs
+  mutate_all(~ifelse(is.na(.), 0, .))
+
+
+
+# join the two charts
+hourly_loc_sum_total <-  hourly_summary %>% 
+                                    left_join(hourly_location_date_summary)
+```
+
+# Visualize hourly data
+
+```{r}
+# Basic interactive bar chart of hourly counts
+plot_hourly <- plot_ly(hourly_loc_sum_total,
+                       x = ~hour_label,
+                       y = ~Total_Hourly_Count,
+                       type = "bar",
+                       name = "Total") %>%
+  layout(title = "Events by Hour",
+         xaxis = list(title = "Hour of Day", tickangle = 45),
+         yaxis = list(title = "Number of Events"),
+         hovermode = "compare")
+
+# For location breakdown, convert to long format first
+hourly_loc_long <- hourly_loc_sum_total %>%
+  pivot_longer(
+    cols = -c(hour_label, Total_Hourly_Count, Date2),
+    names_to = "Location",
+    values_to = "Count"
+  )
+
+# Interactive stacked bar chart by location
+plot_by_location <- plot_ly(hourly_loc_long,
+                           x = ~hour_label,
+                           y = ~Count,
+                           color = ~Location,
+                           type = "bar") %>%
+  layout(title = "Events by Location and Hour",
+         xaxis = list(title = "Hour of Day", tickangle = 45),
+         yaxis = list(title = "Number of Events"),
+         barmode = "stack",
+         hovermode = "compare")
+
+# # Display the plots
+# plot_hourly
+
+```
+
+# Visualize with location
+
+```{r}
+# Create a plotly visualization with buttons to filter by location but no legend
+locations <- sort(unique(hourly_loc_long$Location))  # Sort locations alphabetically
+
+# Create a list of buttons, one for each location plus "All"
+buttons <- list(
+  list(
+    method = "update",
+    args = list(list(visible = rep(TRUE, length(locations))),
+                list(title = "Events by Location and Hour - All Locations")),
+    label = "All"
+  )
+)
+
+# Add a button for each location in alphabetical order
+for(i in 1:length(locations)) {
+  visible <- rep(FALSE, length(locations))
+  visible[i] <- TRUE
+  
+  buttons <- c(buttons, list(
+    list(
+      method = "update",
+      args = list(list(visible = visible),
+                  list(title = paste0("Events by Location and Hour - ", locations[i]))),
+      label = locations[i]
+    )
+  ))
+}
+
+# Create the base plot
+plot_by_location <- plot_ly()
+
+# Add each location as a separate trace
+for(i in 1:length(locations)) {
+  loc_data <- filter(hourly_loc_long, Location == locations[i])
+  
+  plot_by_location <- plot_by_location %>%
+    add_trace(
+      data = loc_data,
+      x = ~hour_label,
+      y = ~Count,
+      type = "bar",
+      name = locations[i],
+      marker = list(color = colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"))(length(locations))[i])
+    )
+}
+
+# Add the buttons and layout - moved to upper left and removed legend
+plot_by_location <- plot_by_location %>%
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "compare",
+    showlegend = FALSE,  # Remove the legend
+    updatemenus = list(
+      list(
+        type = "dropdown",
+        buttons = buttons,
+        direction = "down",
+        showactive = TRUE,
+        x = 1.1,
+        y = 1
+    ))
+  )
+
+# Display the plot
+# plot_by_location
+```
+
+```{r}
+# remove if date is na
+
+hourly_loc_long <- hourly_loc_long %>%
+  filter(!is.na(Date2))
+
+```
+
+```{r}
+library(usethis) 
+usethis::edit_r_environ()
+```
+
+## hourly location summary
+
+```{r}
+# More efficient approach
+# hourly_location_summary <- PITS_2023_2025_public %>%
+#   # Select only necessary columns to reduce memory usage
+#   select(hour_label, Location_Standard, Date2) %>%
+#   # Pre-aggregate to reduce data size before pivoting
+#   count(Date2, hour_label, Location_Standard, name = "count") %>%
+#   # Now pivot with the smaller dataset
+#   pivot_wider(
+#     id_cols = c(Date2, hour_label),
+#     names_from = Location_Standard,
+#     values_from = count,
+#     values_fill = 0
+#   )
+library(dplyr)
+library(tidyr)
+
+hourly_location_summary <- PITS_2023_2025_public %>%
+  # Select only necessary columns to reduce memory usage
+  select(hour_label, Location_Standard, Date2) %>%
+  # Pre-aggregate to reduce data size before pivoting
+  count(Date2, hour_label, Location_Standard, name = "count") %>%
+  # Now pivot with the smaller dataset
+  pivot_wider(
+    id_cols = c(Date2, hour_label),
+    names_from = Location_Standard,
+    values_from = count,
+    values_fill = 0
+  ) %>%
+  # Ensure all NA values are replaced with 0
+  filter(hour_label!= 0)
+
+# Check if NA values are removed
+sum(is.na(hourly_location_summary))  # Should return 0
+```
+
+# Process by date chunks
+
+```{r}
+# Get unique dates
+# unique_dates <- unique(PITS_2023_2025_public$Date2)
+# # Process in chunks of 30 days
+# chunk_size <- 30
+# date_chunks <- split(unique_dates, ceiling(seq_along(unique_dates)/chunk_size))
+# 
+# # Initialize empty result dataframe
+# hourly_location_summary <- data.frame()
+# 
+# # Process each chunk
+# for(chunk in date_chunks) {
+#   temp_df <- PITS_2023_2025_public %>%
+#     filter(Date2 %in% chunk) %>%
+#     select(hour_label, Location_Standard, Date2) %>%
+#     count(Date2, hour_label, Location_Standard, name = "count") %>%
+#     pivot_wider(
+#       id_cols = c(Date2, hour_label),
+#       names_from = Location_Standard,
+#       values_from = count,
+#       values_fill = 0
+#     )
+#   
+#   # Append to result
+#   hourly_location_summary <- bind_rows(hourly_location_summary, temp_df)
+# }
+
+```
+
+## adding a data slider to the graph
+
+```{r}
+# getting tge date tune slider but this only produced a date drop down
+# Get unique dates and locations
+dates <- sort(unique(hourly_loc_long$Date2))
+locations <- sort(unique(hourly_loc_long$Location))
+
+# Create a base plot
+p <- plot_ly()
+
+# Add traces for each location
+for (loc in locations) {
+  loc_data <- filter(hourly_loc_long, Location == loc)
+  p <- p %>% add_trace(
+    data = loc_data,
+    x = ~hour_label,
+    y = ~Count,
+    type = "bar",
+    name = loc,
+    transforms = list(
+      list(
+        type = 'filter',
+        target = ~Location,
+        operation = '=',
+        value = loc
+      ),
+      list(
+        type = 'filter',
+        target = ~Date2,
+        operation = 'in',
+        value = dates[1]  # Default to first date
+      )
+    )
+  )
+}
+
+# Create location filter buttons
+loc_buttons <- lapply(c("All", locations), function(loc) {
+  if (loc == "All") {
+    list(
+      method = "update",
+      args = list(
+        list(visible = rep(TRUE, length(locations))),
+        list(title = "Events by Location and Hour - All Locations")
+      ),
+      label = "All Locations"
+    )
+  } else {
+    visible <- rep(FALSE, length(locations))
+    visible[match(loc, locations)] <- TRUE
+    list(
+      method = "update",
+      args = list(
+        list(visible = visible),
+        list(title = paste0("Events by Location and Hour - ", loc))
+      ),
+      label = loc
+    )
+  }
+})
+
+# Create date filter buttons (showing only first 10 dates if there are many)
+date_buttons <- lapply(dates[1:min(10, length(dates))], function(date) {
+  list(
+    method = "restyle",
+    args = list(
+      "transforms[1].value", date
+    ),
+    label = as.character(date)
+  )
+})
+
+# Add buttons and layout
+p <- p %>%
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "compare",
+    showlegend = TRUE,
+    updatemenus = list(
+      # Location filter
+      list(
+        type = "dropdown",
+        active = 0,
+        buttons = loc_buttons,
+        direction = "down",
+        showactive = TRUE,
+        x = 0.1,
+        y = 1.1,
+        name = "Location Filter"
+      ),
+      # Date filter 
+      list(
+        type = "dropdown",
+        active = 0,
+        buttons = date_buttons,
+        direction = "down",
+        showactive = TRUE,
+        x = 0.4,
+        y = 1.1,
+        name = "Date Filter"
+      )
+    )
+  )
+# 
+# p
+```
+
+# Crosstalk Plotly Graph by location and hour
+
+```{r}
+# # library(plotly)
+# # library(dplyr)
+# # library(crosstalk)
+# # 
+# # # Convert hourly_location_summary to long format if needed
+# # hourly_loc_long <- hourly_location_summary %>%
+# #   pivot_longer(
+# #     cols = -c(Date2, hour_label),
+# #     names_to = "Location",
+# #     values_to = "Count"
+# #   )
+# # 
+# # # Make sure Date2 is a proper Date object
+# # hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+# # 
+# # hourly_loc_long2 <- hourly_loc_long %>%
+# #   filter(!is.na(hour_label))
+# # 
+# # # Create a shared data object
+# # sd <- SharedData$new(hourly_loc_long2)
+# # 
+# # # Create the plotly visualization
+# # p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar",  text = ~paste("Hour: ", hour_label,
+# #                           "<br>Location: ", Location,
+# #                           "<br>Count: ", Count,
+# #                           "<br>Date: ", Date2),
+# #              hoverinfo = "text") %>% 
+# #   layout(
+# #     title = "Events by Location and Hour",
+# #     xaxis = list(title = "Hour of Day", tickangle = 45),
+# #     yaxis = list(title = "Number of Events"),
+# #     barmode = "stack",
+# #     hovermode = "compare",
+# #     showlegend = FALSE
+# #   )
+# # # Create filter panel
+# # filter_panel <- list(
+# #   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+# #   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+# # )
+# 
+# library(plotly)
+# library(dplyr)
+# library(crosstalk)
+# library(tidyr)
+# 
+# # Convert hourly_location_summary to long format if needed
+# hourly_loc_long <- hourly_location_summary %>%
+#   pivot_longer(
+#     cols = -c(Date2, hour_label),
+#     names_to = "Location",
+#     values_to = "Count"
+#   )
+# 
+# # Make sure Date2 is a proper Date object
+# hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+# 
+# # Filter out NA values
+# hourly_loc_long2 <- hourly_loc_long %>%
+#   filter(!is.na(hour_label))
+# 
+# # Create a shared data object
+# sd <- SharedData$new(hourly_loc_long2)
+# 
+# # Create the plotly visualization
+# p <- plot_ly(sd, x = ~hour_label, y = ~Count, color = ~Location, type = "bar",  
+#              text = ~paste("Hour: ", hour_label,
+#                           "<br>Location: ", Location,
+#                           "<br>Count: ", Count,
+#                           "<br>Date: ", Date2),
+#              hoverinfo = "text") %>% 
+#   layout(
+#     title = "Events by Location and Hour",
+#     xaxis = list(title = "Hour of Day", tickangle = 45),
+#     yaxis = list(title = "Number of Events"),
+#     barmode = "stack",
+#     hovermode = "closest",
+#     showlegend = FALSE
+#   )
+# 
+# # Create filter panel
+# filter_panel <- list(
+#   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+#   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+# )
+#   # # Add total incidents annotation
+#   # add_annotations(
+#   #   x = total_incidents_per_hour$hour_label,
+#   #   y = total_incidents_per_hour$TotalIncidents,
+#   #   text = ~paste0("Total: ", total_incidents_per_hour$TotalIncidents),
+#   #   xref = "x",
+#   #   yref = "y",
+#   #   showarrow = TRUE,
+#   #   arrowhead = 7,
+#   #   ax = 0,
+#   #   ay = -40,
+#   #   font = list(size = 10)
+#   # )
+# 
+# # Create filter panel
+# filter_panel <- list(
+#   filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+#   filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+# )
+```
+
+```{r}
+library(plotly)
+library(dplyr)
+library(crosstalk)
+library(tidyr)
+
+# Convert hourly_location_summary to long format if needed
+hourly_loc_long <- hourly_location_summary %>%
+  pivot_longer(
+    cols = -c(Date2, hour_label),
+    names_to = "Location",
+    values_to = "Count"
+  )
+
+# Make sure Date2 is a proper Date object
+hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+
+# Filter out NA values
+hourly_loc_long2 <- hourly_loc_long %>%
+  filter(!is.na(hour_label))
+
+# Create a shared data object
+sd <- SharedData$new(hourly_loc_long2)
+
+# Create the plotly visualization
+p <- plot_ly(sd, 
+             x = ~hour_label, 
+             y = ~Count, 
+             color = ~Location, 
+             type = "bar",  
+             # Remove text parameter
+             hoverinfo = "text",
+             hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}") %>% 
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "closest",
+    showlegend = FALSE
+  )
+
+# Create filter panel
+filter_panel <- list(
+  filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+  filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+)
+```
+
+## JavaScript to help produce a prettier image
+
+```{js, echo=FALSE}
+
+var fitTheScreen = window.setInterval(function(){
+  if ( $(".irs-from").text() === $(".irs-min").text() ) {
+    $(".irs-from").css({"left": "10%"});
+  }
+
+  if ( $(".irs-to").text() === $(".irs-max").text() ) {
+    $(".irs-to").css({"left": "86%"});
+  }
+
+}, 1000);
+
+```
+
+# GRAPH for location and date
+
+```{r}
+# Combine filters with plot
+bscols(
+  widths = c(3, 9),
+  filter_panel,
+  p
+)
+```
+
+## SHINY APP for event count and location
+
+```{r}
+# PITS Data with Event and Location
+# Define UI
+ui <- fluidPage(
+  titlePanel("Interactive Plotly with Filters"),
+  sidebarLayout(
+    sidebarPanel(
+      filter_slider("Date2", "Date Range", sd, ~Date2, width = "100%"),
+      filter_select("Location", "Location", sd, ~Location, multiple = TRUE)
+    ),
+    mainPanel(
+      plotlyOutput("plot")  # Output for the plot
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  output$plot <- renderPlotly({
+    plot_ly(sd, 
+            x = ~hour_label, 
+            y = ~Count, 
+            color = ~Location, 
+            type = "bar",  
+            hoverinfo = "text",
+            hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}") %>% 
+      layout(
+        title = "Events by Location and Hour",
+        xaxis = list(title = "Hour of Day", tickangle = 45),
+        yaxis = list(title = "Number of Events"),
+        barmode = "stack",
+        hovermode = "closest",
+        showlegend = FALSE
+      )
+  })
+}
+
+# Run the app
+shinyApp(ui, server)
+# http://127.0.0.1:5659/
+```
+
+```{r}
+library(plotly)
+library(dplyr)
+library(crosstalk)
+library(tidyr)
+
+colnames(hourly_location_summary) <- trimws(colnames(hourly_location_summary))
+
+hourly_loc_long <- hourly_location_summary %>%
+  pivot_longer(
+    cols = -c(Date2, hour_label),
+    names_to = "Location",
+    values_to = "Count"
+  )
+```
+
+```{r}
+
+# hourly_loc_long <- hourly_location_summary %>%
+#   pivot_longer(
+#     cols = starts_with(""),  # Ensures all other columns are pivoted
+#     names_to = "Location",
+#     values_to = "Count"
+#   )
+
+# Check if Location exists after pivot
+print(colnames(hourly_loc_long))
+
+# Ensure Date2 is a Date object
+hourly_loc_long$Date2 <- as.Date(hourly_loc_long$Date2)
+
+# Filter out NA values
+hourly_loc_long2 <- hourly_loc_long %>%
+  filter(!is.na(hour_label), !is.na(Location), !is.na(Count))
+
+# Verify the data after filtering
+print(head(hourly_loc_long2))
+
+# Create a shared data object
+sd2 <- SharedData$new(hourly_loc_long2)
+
+# Calculate total count per hour_label
+totals <- hourly_loc_long2 %>%
+  group_by(hour_label) %>%
+  summarise(TotalCount = sum(Count, na.rm = TRUE))
+
+# Ensure totals data exists
+print(head(totals))
+
+# Create the plotly visualization
+# c <- plot_ly(sd2, 
+#              x = ~hour_label, 
+#              y = ~Count, 
+#              color = ~Location, 
+#              type = "bar",
+#              hoverinfo = "text",
+#              hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}<br>Count: %{y}<extra></extra>") %>% 
+#   layout(
+#     title = "Events by Location and Hour",
+#     xaxis = list(title = "Hour of Day", tickangle = 45),
+#     yaxis = list(title = "Number of Events"),
+#     barmode = "stack",
+#     hovermode = "closest",
+#     showlegend = FALSE
+#   )
+c <- plot_ly(sd2, 
+             x = ~hour_label, 
+             y = ~Count, 
+             color = ~Location,  # Location-based grouping for bars
+             type = "bar",
+             hoverinfo = "text",
+             hovertemplate = "Hour: %{x}<br>Location: %{fullData.name}<br>Count: %{y}<extra></extra>") %>% 
+  layout(
+    title = "Events by Location and Hour",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Events"),
+    barmode = "stack",
+    hovermode = "closest",
+    showlegend = TRUE  # Enable legend to show locations
+  )
+
+# Add total count as text labels on top of bars
+# Add total count trace as a separate text layer (No color grouping)
+c <- c %>% 
+  add_trace(
+    data = totals,  # Ensure this is a separate dataset
+    x = ~hour_label,
+    y = ~TotalCount,
+    type = "scatter",
+    mode = "text",
+    text = ~TotalCount,
+    textposition = "top",
+    showlegend = FALSE  # Avoid adding it to the legend
+  )
+# c <- c %>% 
+#   add_trace(
+#     data = totals,
+#     x = ~hour_label,
+#     y = ~TotalCount,
+#     type = "scatter",
+#     mode = "text",
+#     text = ~TotalCount,
+#     textposition = "top",
+#     showlegend = FALSE
+#   )
+
+# Create filter panel
+filter_panel2 <- list(
+  filter_slider("Date2", "Date Range", sd2, ~Date2, width = "100%"),
+  filter_select("Location", "Location", sd2, ~Location, multiple = TRUE)
+)
+
+# # Combine filters with plot
+# bscols(
+#   widths = c(3, 9),
+#   filter_panel2,
+#   c
+# )
+
+```
+
+# less aggressive parsing that works better
+
+```{r}
+# 
+PITS_categories <- PITS_2023_2025_public %>%
+  # Create row ID for later joining
+  mutate(row_id = row_number()) %>%
+  # Process the categories column as before
+  mutate(categories = str_replace_all(`Infraction Categories`, "[,~]", ",")) %>%
+  # Split by comma
+  # separate_rows(categories, sep = ",") %>%
+  # Clean up each value
+  # mutate(categories = str_trim(`Infraction Categories`)) %>%
+  mutate(categories = str_replace_all(categories, "[~,]", ",")) %>%
+  mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+
+  mutate(categories = case_when(
+    categories == "null" ~ "Other",
+    categories == "null,null" ~ "Other",
+    categories == "null~null" ~ "Other",
+    categories == "" ~ "Other",
+    str_detect(categories, "^#+$") ~ "Other",
+    TRUE ~ categories
+  )) %>%
+  # Replace "or Illegal Conduct" with "Illegal Conduct"
+  # mutate(categories = ifelse(categories == "or Illegal Conduct", "Illegal Conduct", categories)) %>%
+  # Remove "or" and "and" if they appear as standalone words
+  # mutate(categories = str_replace(categories, "^(or|and)$", "")) %>%
+  # Remove empty strings, null values, and categories with hash symbols
+  filter(categories != "") %>%
+  filter(categories != "null") %>%
+  filter(!str_detect(categories, "#"))
+
+```
+
+## attempt to parse categories with comma separator
+
+```{r}
+# Function to properly parse categories with comma handling
+parse_categories <- function(categories_string) {
+  if (is.na(categories_string) || categories_string == "") {
+    return(character(0))
+  }
+  
+  # Replace commas followed by spaces with a temporary delimiter
+  # This preserves phrases like "Dangerous, Threatening, or Illegal Conduct"
+  temp_string <- gsub(", ", "<<COMMA_SPACE>>", categories_string)
+  
+  # Split by remaining commas (those without spaces after them)
+  split_categories <- strsplit(temp_string, ",")[[1]]
+  
+  # Restore the original comma-space combinations
+  result <- gsub("<<COMMA_SPACE>>", ", ", split_categories)
+  
+  # Trim any whitespace
+  result <- trimws(result)
+  
+  return(result)
+}
+
+# Example usage
+example_categories <- c(
+  "Dangerous, Threatening, or Illegal Conduct,Disruptive Personal Behavior,Use and preservation of library materials and property",
+  "Children in the Library,Incident Impact Level - Staff Traumatic Stress",
+  "Dangerous, Threatening, or Illegal Conduct,Disruptive,Personal Behavior",
+  NA,
+  ""
+)
+
+# Apply the function to each example
+results <- lapply(example_categories, parse_categories)
+
+# Display the results
+for (i in seq_along(example_categories)) {
+  if (!is.na(example_categories[i]) && example_categories[i] != "") {
+    cat("Original:", example_categories[i], "\n")
+    cat("Parsed:", paste(results[[i]], collapse = " | "), "\n\n")
+  } else {
+    cat("Original:", example_categories[i], "(empty or NA)\n")
+    cat("Parsed:", length(results[[i]]), "items\n\n")
+  }
+}
+
+# To use with a dataframe:
+PITS_categories2 <- PITS_categories %>%
+  mutate(parsed_categories = lapply(categories, parse_categories)) %>%
+  unnest(parsed_categories)
+```
+
+```{r}
+# pits summary
+PITS_summary <- PITS_categories2 %>%
+  group_by(parsed_categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(parsed_categories, desc(count))
+
+print(PITS_summary)
+```
+
+# parse empty categories
+
+```{r}
+# Filter for rows where Infraction Categories is empty, null, or contains #
+PITS_empty_categories <- PITS_2023_2025_public %>% 
+  filter(`Infraction Categories` == "" | 
+         `Infraction Categories` == "null" | 
+         str_detect(`Infraction Categories`, "#") |
+         is.na(`Infraction Categories`))
+
+PITS_empty_categories <- PITS_empty_categories %>%
+  # Create row ID for later joining
+  mutate(row_id = row_number()) %>%
+  # Create a new column that takes values from Infractions when Infraction Categories is problematic
+  mutate(category_source = case_when(
+    is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+    str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+    TRUE ~ `Infraction Categories`
+  )) %>%
+  mutate(category_source = str_replace_all(category_source, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+   mutate(category_source = iconv(category_source, "UTF-8", "ASCII", sub="")) %>%
+  # Simply rename null and hash values to "Other" in the category_source column
+  mutate(category_source = case_when(
+    category_source == "null" ~ "Other",
+    category_source == "null~null" ~ "Other",
+    str_detect(category_source, "^#+$") ~ "Other",
+    TRUE ~ category_source
+  ))
+
+```
+
+# long version of parsing empty
+
+```{r}
+# rename 
+PITS_empty_categories <- PITS_empty_categories %>% 
+        mutate(category_source = case_when(
+        category_source == "Medical 911Called 911 for medical" ~ "Medical 911",
+        TRUE ~ category_source
+  ))
+# # Filter for rows where Infraction Categories is empty, null, or contains #
+# PITS_empty_categories <- PITS_2023_2025_public %>%
+#   filter(`Infraction Categories` == "" |
+#          `Infraction Categories` == "null" |
+#          str_detect(`Infraction Categories`, "#") |
+#          is.na(`Infraction Categories`))
+
+# #
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   # Create row ID for later joining
+#   mutate(row_id = row_number()) %>%
+#   # Create a new column that takes values from Infractions when Infraction Categories is problematic
+# #   mutate(category_source = case_when(
+# #     is.na(`Infraction Categories`) | `Infraction Categories` == "null" |
+# #     str_detect(`Infraction Categories`, "#") ~ `Infractions`,
+# #     TRUE ~ `Infraction Categories`
+# #   )) %>%
+#   mutate(categories = str_replace_all(category_source, "[,]", ",")) %>%
+#   # # Replace null values and hash-only strings with "Other"
+#   mutate(categories = case_when(
+#     categories == "null" ~ "Other",
+#     categories == "" ~ "Other",
+#     str_detect(categories, "^#+$") ~ "Other",
+#     TRUE ~ categories
+#   )) %>%
+#   # Remove numeric identifiers (like 1.1.7.3)
+#   # # Process the categories column
+#   mutate(categories = str_replace_all(categories, "^\\s*\\d+(\\.\\d+)*\\s+", "|")) %>%
+# #   # # Split by comma and tilde
+#   separate_rows(categories, sep = "[,~]") %>%
+# #   # Clean up each value
+#   mutate(categories = str_trim(categories))
+#   # Filter out any remaining empty values after processing
+#   # filter(categories != "")
+# 
+# # To join this back to the original dataframe
+# # Create a lookup table with the processed categories
+# category_lookup <- PITS_empty_categories %>%
+#   select(row_id, categories) %>%
+#   group_by(row_id) %>%
+#   summarize(clean_categories = paste(categories, collapse = ", "))
+# 
+
+
+```
+
+```{r}
+# library(stringr)
+# library(dplyr)
+# 
+# # Sample text
+# text <- "Disruptive Personal Behavior2.4 Sleeping2.10 Creating tripping hazards, blocking aisles, exits, entrances~Medical 911"
+# 
+# # Function to clean and add separators
+# clean_text <- function(text) {
+#   text %>%
+#     str_replace_all("(?<!911)\\b\\d+\\.\\d+\\b", "") %>%  # Remove numeric codes like 2.4, 2.10 (but not 911)
+#     str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric
+#     str_replace_all("(?<!911)(?<=\\D)(?=\\b(?!911)\\d+\\b)", " | ") %>%  # Insert separator before standalone numbers (not 911)
+#     str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
+#     str_squish()  # Remove extra spaces
+# }
+# 
+# 
+# # clean_text <- function(text) {
+# #   text %>%
+# #     str_replace_all("\\b\\d+\\.\\d+\\b(?!\\s*911)", "") %>%  # Remove numeric codes like 2.4, 2.10 but not 911
+# #     str_replace_all("~", " | ") %>%  # Replace tilde (~) with separator
+# #     str_squish()  # Remove extra spaces
+# # }
+# 
+# 
+# # Apply function
+# cleaned_text <- clean_text(text)
+# print(cleaned_text)
+```
+
+```{r}
+# Clean the categories column by removing number patterns and creating separations
+# PITS_empty_categories <- PITS_empty_categories %>%
+#   # Create a new cleaned_categories column
+#   mutate(cleaned_categories = sapply(categories, function(text) {
+#     if (is.na(text) || text == "") {
+#       return(NA)
+#     }
+#     
+#     # Replace tildes with multiple spaces
+#     text <- gsub("~", "    ", text)
+#     
+#     # Split by 3 or more spaces
+#     parts <- unlist(strsplit(text, "\\s{3,}"))
+#     parts <- trimws(parts)
+#     
+#     # Remove numbering patterns (like 2.1 or 1.1.7.2)
+#     parts <- gsub("\\d+(\\.\\d+)*\\s+", "", parts)
+#     
+#     # Remove any empty parts
+#     parts <- parts[parts != ""]
+#     
+#     # Join with a separator that works well for pivot_wider
+#     return(paste(parts, collapse = " | "))
+#   }))
+# 
+# # Now create a long format dataframe suitable for pivot_wider
+# PITS_empty_categories_long <- PITS_empty_categories %>%
+#   # Split the cleaned_categories into separate rows
+#   separate_rows(cleaned_categories, sep = " \\| ") %>%
+#   # Create a dummy value column for pivot_wider (e.g., count of 1 for each category)
+#   mutate(value = 1)
+# 
+# # Create a wide format with categories as columns
+# PITS_empty_categories_wide <- PITS_empty_categories_long %>%
+#   pivot_wider(
+#     id_cols = c(row_id), # Include any identifier columns you need
+#     names_from = cleaned_categories,
+#     values_from = value,
+#     values_fill = 0 # Fill missing values with 0
+#   )
+# 
+# # Preview the results
+# head(PITS_empty_categories_wide)
+```
+
+# EXAMPLE of type of parsing task
+## unique counts of empty category
+```{r}
+# get the various values in the list
+# Count and display unique values in category_source
+unique_counts <- PITS_empty_categories %>%
+  count(category_source, sort = TRUE) %>%
+  rename(count = n)
+
+# Display the results
+print(unique_counts)
+
+
+```
+
+# parsing and pivoting wider for empty categories
+
+```{r}
+# Load required libraries
+library(dplyr)
+library(stringr)
+library(tidyr)
+
+# Define the specific categories we want to extract
+target_categories <- c(
+  "Children in the Library",
+  "Dangerous, Threatening, or Illegal Conduct",
+  "Disruptive Personal Behavior",
+  "Incident Impact Level - Staff Traumatic Stress",
+  "Medical 911",
+  "Other",
+  "No Infractions Set",
+  "Use and preservation of library materials and property"
+)
+
+# Check if PITS_empty_categories exists and has the expected columns
+if(!exists("PITS_empty_categories") || !"category_source" %in% colnames(PITS_empty_categories)) {
+  stop("PITS_empty_categories dataframe not found or missing category_source column")
+}
+
+# Check if incident_id exists, if not create a row number as ID
+if(!"incident_id" %in% colnames(PITS_empty_categories)) {
+  PITS_empty_categories <- PITS_empty_categories %>%
+    mutate(row_id = row_number())
+  message("Created incident_id column using row numbers")
+}
+
+# Create a new column that contains the matching category if it exists
+result_df <- PITS_empty_categories %>%
+  mutate(extracted_category = case_when(
+    str_detect(category_source, fixed("Children in the Library")) ~ "Children in the Library",
+    str_detect(category_source, fixed("Dangerous, Threatening, or Illegal Conduct")) ~ "Dangerous, Threatening, or Illegal Conduct",
+    str_detect(category_source, "Disorderly conduct, fighting, violence, threatening, intimidating") ~ "Dangerous, Threatening, or Illegal Conduct",
+    str_detect(category_source, fixed("Disruptive Personal Behavior")) ~ "Disruptive Personal Behavior",
+    str_detect(category_source, fixed("Incident Impact Level - Staff Traumatic Stress")) ~ "Incident Impact Level - Staff Traumatic Stress",
+    str_detect(category_source, fixed("Medical 911")) ~ "Medical 911",
+    str_detect(category_source, fixed("Other")) ~ "Other",
+    str_detect(category_source, fixed("No Infractions Set")) ~ "No Infractions Set",
+    str_detect(category_source, fixed("Use and preservation of library materials and property")) ~ "Use and preservation of library materials and property",
+    TRUE ~ NA_character_
+  ))
+
+# Check if any categories were extracted
+if(sum(!is.na(result_df$extracted_category)) == 0) {
+  # Print some sample values to help diagnose the issue
+  cat("No categories were matched. Here are some sample values from category_source:\n")
+  print(head(PITS_empty_categories$category_source, 10))
+  stop("No categories were extracted - check if the strings match exactly")
+}
+
+# Create the wide format
+result_wide <- result_df %>%
+  filter(!is.na(extracted_category)) %>%
+  mutate(present = 1) %>%  # Create a value column
+  pivot_wider(
+    id_cols = row_id,
+    names_from = extracted_category,
+    values_from = present,
+    values_fill = 0
+  )
+
+# Check if the pivot_wider worked
+if(ncol(result_wide) <= 1) {
+  stop("pivot_wider resulted in only ID column - check if extracted_category has any values")
+}
+
+# Print summary to confirm it worked
+cat("Successfully extracted categories. Results summary:\n")
+print(summary(result_wide))
+
+# Return the result
+result_wide
+
+```
+
+```{r}
+# result_df has the right extracted_category
+names(result_df)
+```
+
+```{r}
+names(PITS_categories2)
+
+
+
+```
+
+# rename pits empty categories
+
+```{r}
+result_df <- result_df %>% 
+  rename(categories = category_source) %>% 
+  rename(parsed_categories = extracted_category)
+
+
+```
+
+# combine dateframes with extracted categories
+
+```{r}
+names(result_df)
+
+PITS_public <- rbind(result_df, PITS_categories2) %>% 
+  select(-row_id) 
+  # mutate(parsed_categories = case_when(
+  #   # parsed_categories == "null" ~ "Other",
+  #   # parsed_categories == "NA" ~ "Other",
+  #   # str_detect(categories, "null") ~ "Other",
+  #   str_detect(categories, "Disorderly conduct, fighting, violence, threatening, intimidating") ~ "Dangerous, Threatening, or Illegal Conduct",
+  #   TRUE ~ parsed_categories))
+```
+
+# summarize the new categories
+
+```{r}
+PITS_public_summary <- PITS_public %>%
+  group_by(parsed_categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(parsed_categories, desc(count))
+
+print(PITS_public_summary)
+
+
+
+```
+
+# TABLE GRAPH for incident types
+
+```{r}
+library(dplyr)
+library(kableExtra)
+
+library(ggpubr)
+# Compute summary with percentages
+PITS_public_summary <- PITS_public %>%
+  group_by(parsed_categories) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  mutate(
+    percentage = round((count / sum(count)) * 100, 1)  # Calculate & round percentage
+  ) %>%
+  arrange(desc(count))  # Sort by highest count
+
+# Convert to ggtexttable and save
+p <- ggtexttable(PITS_public_summary, rows = NULL, theme = ttheme("light"))
+
+ggsave("PITS_public_summary_table.png", plot = p, width = 12, height = 8, dpi = 300)
+
+# Create a formatted table
+PITS_public_summary_table <- PITS_public_summary %>%
+  kable("html", 
+        col.names = c("Category", "Count", "Percentage (%)"), 
+        format.args = list(big.mark = ",")) %>%
+   add_header_above(c("PITS Incident Category by Type" = 3)) %>%  # Add table title spanning all 4 columns
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(3, color = "blue") %>%
+  row_spec(0, bold = TRUE, color = "white", background = "#428bca")
+
+save_kable(PITS_public_summary_table, file = "PITS_incident_type_summary_table.html")
+
+
+PITS_public_summary_table
+```
+## drop old category for PITS_public
+```{r}
+PITS_public2 <- PITS_public %>% 
+  select(-categories)
+```
+
+## pivot pits_public wide
+```{r}
+
+PITS_public_wide <- PITS_public %>%
+  filter(!is.na(parsed_categories)) %>%
+  distinct(`Incident ID`, parsed_categories, Location_Standard, Date2, hour_label, .keep_all = TRUE) %>%
+  mutate(present = 1) %>%
+  pivot_wider(
+    id_cols = c(`Incident ID`, Location_Standard, Date2, hour_label,),  # Include Location_Standard in id_cols
+    names_from = parsed_categories,
+    values_from = present,
+    values_fill = 0
+  )
+```
+
+# PLOT for incident type and date filter
+
+```{r}
+library(plotly)
+library(dplyr)
+library(tidyr)
+library(crosstalk)
+
+# Prepare the data with detailed logging
+incident_counts <- PITS_public_wide %>%
+  # Select all columns except Incident ID
+  select(-`Incident ID`) %>%
+  # Melt the data to get incident types in a long format
+  pivot_longer(
+    cols = -c(Location_Standard, Date2, hour_label),
+    names_to = "Incident_Type",
+    values_to = "Incident_Presence"
+  ) %>%
+  # Filter to only include rows where the incident is present (Incident_Presence == 1)
+  filter(Incident_Presence == 1) %>%
+  # Ensure Date2 is a proper Date object
+  mutate(Date2 = as.Date(Date2)) %>%
+  # Group and count
+  group_by(Location_Standard, Date2, hour_label, Incident_Type) %>%
+  summarise(Count = sum(Incident_Presence), .groups = 'drop')
+
+# Print out summary statistics to help diagnose
+print("Total incidents by type:")
+print(incident_counts %>% 
+  group_by(Incident_Type) %>% 
+  summarise(Total_Incidents = sum(Count)))
+
+# Print out total incidents per location
+print("Total incidents by location:")
+print(incident_counts %>% 
+  group_by(Location_Standard) %>% 
+  summarise(Total_Incidents = sum(Count)))
+
+# Create a shared data object
+sd2 <- SharedData$new(incident_counts)
+
+# Create the plotly visualization
+p2 <- plot_ly(sd2, 
+             x = ~hour_label, 
+             y = ~Count, 
+             color = ~Incident_Type, 
+             type = "bar",
+             text = ~paste("Hour: ", hour_label,
+                           "<br>Location: ", Location_Standard,
+                           "<br>Incident Type: ", Incident_Type,
+                           # "<br>Count: ", Count,
+                           "<br>Date: ", Date2),
+             hoverinfo = "text") %>% 
+  layout(
+    title = "Incidents by Location, Hour, and Type",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Incidents"),
+    barmode = "stack",
+    hovermode = "compare"
+  )
+
+# Create filter panel
+filter_panel2 <- list(
+  filter_slider("Date2", "Date Range", sd2, ~Date2, width = "100%"),
+  filter_select("Location_Standard", "Location", sd2, ~Location_Standard, multiple = TRUE),
+  filter_select("Incident_Type", "Incident Type", sd2, ~Incident_Type, multiple = TRUE)
+)
+
+# Combine filters with plot
+bscols(
+  widths = c(3, 9),
+  filter_panel2,
+  p2
+)
+# Optional: Print out the first few rows to verify counts
+# print(head(incident_counts))
+```
+
+```{r}
+
+# Save the plot as an interactive HTML file
+saveWidget(p2, file = "PITS_incidents-date-location-graph.html", selfcontained = TRUE)
+```
+# SHINY APP for Incident Type
+```{r}
+library(shiny)
+library(plotly)
+library(dplyr)
+library(tidyr)
+library(crosstalk)
+
+
+# Prepare the data with detailed logging
+incident_counts <- PITS_public_wide %>%
+  # Select all columns except Incident ID
+  select(-`Incident ID`) %>%
+  # Melt the data to get incident types in a long format
+  pivot_longer(
+    cols = -c(Location_Standard, Date2, hour_label),
+    names_to = "Incident_Type",
+    values_to = "Incident_Presence"
+  ) %>%
+  # Filter to only include rows where the incident is present (Incident_Presence == 1)
+  filter(Incident_Presence == 1) %>%
+  # Ensure Date2 is a proper Date object
+  mutate(Date2 = as.Date(Date2)) %>%
+  # Group and count
+  group_by(Location_Standard, Date2, hour_label, Incident_Type) %>%
+  summarise(Count = sum(Incident_Presence), .groups = 'drop')
+
+# Create a shared data object for filtering
+sd2 <- SharedData$new(incident_counts)
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Incident Reports Dashboard"),
+  sidebarLayout(
+    sidebarPanel(
+      filter_slider("Date2", "Date Range", sd2, ~Date2, width = "100%"),
+      filter_select("Location_Standard", "Location", sd2, ~Location_Standard, multiple = TRUE),
+      filter_select("Incident_Type", "Incident Type", sd2, ~Incident_Type, multiple = TRUE)
+    ),
+    mainPanel(
+      plotlyOutput("incident_plot")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  output$incident_plot <- renderPlotly({
+    plot_ly(sd2, 
+            x = ~hour_label, 
+            y = ~Count, 
+            color = ~Incident_Type, 
+            type = "bar",
+            text = ~paste("Hour: ", hour_label,
+                          "<br>Location: ", Location_Standard,
+                          "<br>Incident Type: ", Incident_Type,
+                          "<br>Date: ", Date2),
+            hoverinfo = "text") %>% 
+      layout(
+        title = "Incidents by Location, Hour, and Type",
+        xaxis = list(title = "Hour of Day", tickangle = 45),
+        yaxis = list(title = "Number of Incidents"),
+        barmode = "stack",
+        hovermode = "compare"
+      )
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui, server)
+
+#http://127.0.0.1:5659/
+
+```
+
+## GRAPH with totals for incidents
+
+```{r}
+# Debugging print to verify column names
+print("Column names:")
+print(names(PITS_public_wide))
+
+# Prepare the data
+incident_counts <- PITS_public_wide %>%
+  # Specify the columns explicitly
+  select(`Incident ID`, Location_Standard, Date2, hour_label, 
+         `Medical 911`, Other, 
+         `Dangerous, Threatening, or Illegal Conduct`, 
+         `Disruptive Personal Behavior`, 
+         `No Infractions Set`, 
+         `Use and preservation of library materials and property`, 
+         `Children in the Library`, 
+         `Incident Impact Level - Staff Traumatic Stress`) %>%
+  # Pivot longer to get incident types
+  pivot_longer(
+    cols = -c(`Incident ID`, Location_Standard, Date2, hour_label),
+    names_to = "Incident_Type",
+    values_to = "Incident_Presence"
+  ) %>%
+  # Filter to only include rows where the incident is present
+  filter(Incident_Presence == 1) %>%
+  # Group and count
+  group_by(Location_Standard, Date2, hour_label, Incident_Type) %>%
+  summarise(Count = n(), .groups = 'drop')
+
+# Calculate total counts for annotation
+total_counts <- incident_counts %>%
+  group_by(Location_Standard, Date2, hour_label) %>%
+  summarise(Total_Count = sum(Count), .groups = 'drop')
+
+# Merge total counts back to the original data
+incident_counts_with_total <- incident_counts %>%
+  left_join(total_counts, by = c("Location_Standard", "Date2", "hour_label"))
+
+# Create a shared data object
+sd3 <- SharedData$new(incident_counts_with_total)
+
+# Create the plotly visualization
+p3 <- plot_ly(sd3, 
+             x = ~hour_label, 
+             y = ~Count, 
+             color = ~Incident_Type, 
+             type = "bar",
+             text = ~paste("Hour: ", hour_label,
+                           "<br>Location: ", Location_Standard,
+                           "<br>Incident Type: ", Incident_Type,
+                           "<br>Total Incidents: ", Total_Count,
+                           "<br>Date: ", Date2),
+             hoverinfo = "text") %>% 
+  layout(
+    title = "Incidents by Location, Hour, and Type",
+    xaxis = list(title = "Hour of Day", tickangle = 45),
+    yaxis = list(title = "Number of Incidents"),
+    barmode = "stack",
+    hovermode = "compare"
+  ) 
+# %>%
+#   # Add total count annotations
+#   add_annotations(
+#     x = unique(incident_counts_with_total$hour_label),
+#     y = unique(incident_counts_with_total$Total_Count),
+#     text = ~unique(incident_counts_with_total$Total_Count),
+#     xref = "x",
+#     yref = "y",
+#     showarrow = FALSE,
+#     font = list(color = 'red')
+#   )
+
+# Create filter panel
+filter_panel3 <- list(
+  filter_slider("Date2", "Date Range", sd3, ~Date2, width = "100%"),
+  filter_select("Location_Standard", "Location", sd3, ~Location_Standard, multiple = TRUE),
+  filter_select("Incident_Type", "Incident Type", sd3, ~Incident_Type, multiple = TRUE)
+)
+
+# Combine filters with plot
+bscols(
+  widths = c(3, 9),
+  filter_panel3,
+  p3
+)
+# 
+# # Print summary for verification
+# print("Total incidents by type:")
+# print(incident_counts %>% 
+#   group_by(Incident_Type) %>% 
+#   summarise(Total_Incidents = sum(Count)))
+```
+
+
+## Write csv
+```{r}
+write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
+
+# preprocessed data for shiny
+write.csv(PITS_public2, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/PITS_public2.csv")
+write.csv(hourly_loc_long2, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/hourly_loc_long2.csv")
+write.csv(incident_counts_with_total, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/incident_counts_with_total.csv")
+write.csv(incident_counts, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/incident_counts.csv")
+```
