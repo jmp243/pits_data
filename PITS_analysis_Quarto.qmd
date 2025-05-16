@@ -1397,7 +1397,6 @@ result_df <- result_df %>%
 ```
 
 # combine dateframes with extracted categories
-
 ```{r}
 names(result_df)
 
@@ -1411,8 +1410,20 @@ PITS_public <- rbind(result_df, PITS_categories2) %>%
   #   TRUE ~ parsed_categories))
 ```
 
-# summarize the new categories
+# calculate suspension duration
+```{r}
+# Convert start date and end date as dates
+PITS_public$`Start Date` <- as.Date(PITS_public$`Start Date`, format = "%m/%d/%Y")
+PITS_public$`End Date` <- as.Date(PITS_public$`End Date`, format = "%m/%d/%Y")
 
+# create a column that calculates duration by day
+
+
+```
+
+
+
+# summarize the new categories
 ```{r}
 PITS_public_summary <- PITS_public %>%
   group_by(parsed_categories) %>%
@@ -1465,6 +1476,8 @@ PITS_public_summary_table <- PITS_public_summary %>%
 
 PITS_public_summary_table
 ```
+
+
 ## drop old category for PITS_public
 ```{r}
 PITS_public2 <- PITS_public %>% 
