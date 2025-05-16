@@ -58,9 +58,9 @@ MyPC_public <- MyPC_public %>%
 ```{r}
 as.list(unique(MyPC_public$Site))
 
-MyPC_public <- MyPC_public %>%
-  rename(Location_detail = Location) %>%
-  rename(Location = Site)
+# MyPC_public <- MyPC_public %>%
+#   rename(Location_detail = Location) %>%
+#   rename(Location = Site)
 
 ```
 
@@ -93,6 +93,7 @@ location_mapping <- data.frame(
 standardize_location <- function(location) {
   # Remove common suffixes
   location <- gsub(" Branch Library$|\\s+Library$", "", location)
+  location <- gsub("_", "", location)
   
   # Handle specific cases
   location <- gsub("^Joel Valdez Main$", "Joel D. Valdez-Main", location)
@@ -100,7 +101,7 @@ standardize_location <- function(location) {
   location <- gsub("^Bookmobile-Readrunners$", "Bookmobile/Readrunners", location)
   location <- gsub("^Quincie Douglas$", "Quincie Douglas", location)
   location <- gsub("^Virtual Library$", "Web Renewal", location)
-  
+  location <- gsub("_default$", "Web Renewal", location)
   # Return the standardized name
   return(location)
 }
@@ -126,6 +127,67 @@ MyPC_public <- standardize_dataset(MyPC_public, "Location")
 # }
 
 ```
+
+# mask names of the branches
+```{r}
+# Generate unique alternate IDs
+# Function to generate consistent masked IDs
+# generate_consistent_ids <- function(branchnames) {
+#   # Create a unique mapping of original names to masked IDs
+#   unique_names <- unique(branchnames)
+#   masked_ids <- paste0("Branch_", sprintf("%02d", seq_along(unique_names)))
+#   
+#   # Create a named vector for easy lookup
+#   id_mapping <- setNames(masked_ids, unique_names)
+#   
+#   # Map the original names to their consistent masked IDs
+#   return(id_mapping[branchnames])
+# }
+# 
+# # Generate consistent masked IDs
+# MyPC_public$Location_Standard2 <- generate_consistent_ids(MyPC_public$Location_Standard)
+# # Generate consistent masked IDs
+# PITS_2023_2025_public$Location_Standard <- generate_consistent_ids(PITS_2023_2025_public$Location)
+# 
+# # Create a lookup table
+# lookup_table_branch <- MyPC_public %>%
+#   select(original_name = Location, Location_Standard) %>%
+#   distinct()
+
+```
+
+```{r}
+# Function to generate consistent masked IDs
+generate_consistent_ids <- function(names, prefix = "Branch", start_num = 1, padding = 2) {
+  # Create a unique mapping of original names to masked IDs
+  unique_names <- unique(names)
+  masked_ids <- paste0(prefix, "_", sprintf(paste0("%0", padding, "d"), 
+                                           seq(start_num, length.out = length(unique_names))))
+  
+  # Create a named vector for easy lookup
+  id_mapping <- setNames(masked_ids, unique_names)
+  
+  return(id_mapping)
+}
+
+# Step 1: Create a combined list of all unique location names from both datasets
+all_locations <- unique(c(MyPC_public$Location, PITS_2023_2025_public$Location))
+
+# Step 2: Generate one consistent mapping for all locations
+location_mapping <- generate_consistent_ids(all_locations)
+
+# Step 3: Apply this mapping to both datasets
+MyPC_public$Location_Standard <- location_mapping[MyPC_public$Location]
+PITS_2023_2025_public$Location_Standard <- location_mapping[PITS_2023_2025_public$Location]
+
+# Step 4: Create a lookup table for reference
+lookup_table <- data.frame(
+  original_name = names(location_mapping),
+  masked_id = unname(location_mapping)
+) %>% arrange(masked_id)
+
+```
+
 
 ```{r}
 as.list(unique(MyPC_public$Location_Standard))
@@ -642,9 +704,9 @@ browseURL(html_file)
 ### Save csv
 
 ```{r}
-write.csv(MyPC_public, "MyPC_2023-2025-public.csv")
+# write.csv(MyPC_public, "MyPC_2023-2025-public.csv")
 
 write.csv(MyPC_public, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/MyPC_public.csv")
-
-write.csv(ratio_data2024, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/ratio_data2024.csv")
+# 
+# write.csv(ratio_data2024, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/ratio_data2024.csv")
 ```
