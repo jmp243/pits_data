@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-last updated 3/26/2025 
+last updated 4/29/2025 
 # Navigating Data in Public Libraries: Challenges & Opportunities \## Running Code
 
 ### load libraries
@@ -30,11 +30,18 @@ PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/PITS_ListInciden
 
 PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(21:25)] 
 
-PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-March19_2025.csv")
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/PITS_ListIncidents_Jan2025-April29_2025.csv")
 PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
 
 # merge the years
 PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
+
+# read in suspension data
+PITS_susp <- read_csv("~/data librarian/PITS_Data/PITS_ListSuspensions2023_april29_2025.csv")
+PITS_susp$`Incident ID` <- as.character(PITS_susp$`Incident ID`)
+
+# left join suspensions to incidents
+PITS_2023_2025 <- PITS_2023_2025 %>% left_join(PITS_susp)
 
 ```
 
@@ -132,7 +139,7 @@ standardize_location <- function(location) {
   location <- gsub("^Bookmobile-Readrunners$", "Bookmobile/Readrunners", location)
   location <- gsub("^Quincie Douglas$", "Quincie Douglas", location)
   location <- gsub("^Virtual Library$", "Web Renewal", location)
-  
+  location <- gsub("_default$", "Web Renewal", location)
   # Return the standardized name
   return(location)
 }
@@ -150,13 +157,97 @@ standardize_dataset <- function(df, location_col_name) {
 
 # Apply to all three datasets
 PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
-# last52weeks_circ <- standardize_dataset(last52weeks_circ, "Location")
+MyPC_public <- standardize_dataset(MyPC_public, "Location")
 # last52weeks_comp <- standardize_dataset(last52weeks_comp, "Location")
 
 ```
 
-# Clean up the Time format in PITS
 
+```{r}
+# # Step 1: First standardize location names in both datasets (which you've already done)
+# PITS_2023_2025_public <- standardize_dataset(PITS_2023_2025_public, "Location")
+# MyPC_public <- standardize_dataset(MyPC_public, "Location")
+
+# Step 2: Combine all standardized location names from both datasets
+all_standardized_locations <- unique(c(
+  PITS_2023_2025_public$Location_Standard,
+  MyPC_public$Location_Standard
+))
+
+# Step 3: Create a single mapping for all locations
+generate_consistent_ids <- function(location_names, prefix = "Branch") {
+  unique_names <- unique(location_names)
+  # Sort names alphabetically to ensure consistent ordering regardless of which dataset is processed first
+  unique_names <- sort(unique_names)
+  masked_ids <- paste0(prefix, "_", sprintf("%02d", seq_along(unique_names)))
+  
+  # Create a named vector for easy lookup
+  id_mapping <- setNames(masked_ids, unique_names)
+  
+  return(id_mapping)
+}
+
+# Create ONE master mapping using all locations from both datasets
+master_location_mapping <- generate_consistent_ids(all_standardized_locations)
+
+# Step 4: Apply this single mapping to both datasets
+PITS_2023_2025_public$Location_masked <- master_location_mapping[PITS_2023_2025_public$Location_Standard]
+MyPC_public$Location_masked <- master_location_mapping[MyPC_public$Location_Standard]
+
+# Step 5: Create a lookup table for reference
+lookup_table_branch <- data.frame(
+  original_name = names(master_location_mapping),
+  Location_masked = unname(master_location_mapping)
+) %>% arrange(Location_masked)
+
+# Optional: Check that the same locations have the same masked IDs
+validation_check <- full_join(
+  PITS_2023_2025_public %>% select(Location_Standard, PITS_masked = Location_masked) %>% distinct(),
+  MyPC_public %>% select(Location_Standard, MyPC_masked = Location_masked) %>% distinct(),
+  by = "Location_Standard"
+)
+
+# Print any discrepancies (should be none if working correctly)
+discrepancies <- validation_check %>% 
+  filter(PITS_masked != MyPC_masked) %>%
+  filter(!is.na(PITS_masked) & !is.na(MyPC_masked))
+if(nrow(discrepancies) > 0) {
+  print("WARNING: Found inconsistent masking:")
+  print(discrepancies)
+} else {
+  print("Validation successful: Consistent masking across datasets")
+}
+```
+
+# mask names of the branches
+```{r}
+# # Generate unique alternate IDs
+# # Function to generate consistent masked IDs
+# generate_consistent_ids <- function(branchnames) {
+#   # Create a unique mapping of original names to masked IDs
+#   unique_names <- unique(branchnames)
+#   masked_ids <- paste0("Branch_", sprintf("%02d", seq_along(unique_names)))
+#   
+#   # Create a named vector for easy lookup
+#   id_mapping <- setNames(masked_ids, unique_names)
+#   
+#   # Map the original names to their consistent masked IDs
+#   return(id_mapping[branchnames])
+# }
+# 
+# # Generate consistent masked IDs
+# PITS_2023_2025_public$Location_masked <- generate_consistent_ids(PITS_2023_2025_public$Location_Standard)
+# 
+# MyPC_public$Location_masked <- generate_consistent_ids(MyPC_public$Location_Standard)
+# 
+# # Create a lookup table
+# lookup_table_branch <- PITS_2023_2025_public %>%
+#   select(original_name = Location_Standard, Location_masked) %>%
+#   distinct()
+
+```
+
+# Clean up the Time format in PITS
 ```{r}
 # Using rowwise() to parse time
 
@@ -204,8 +295,12 @@ PITS_2023_2025_public$hour_group <- floor_date(PITS_2023_2025_public$time_parsed
                                                unit = "hour")
 
 # For visualization/labeling, you can format the hour
-PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00-%H:59")
+# PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00-%H:59")
 
+PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H:00")
+# 
+#     hour_of_day = hour(booking_from),
+#     hour_label = paste0(hour_of_day, ":00")
 
 ```
 
@@ -220,14 +315,14 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 ```{r}
 # # bring in the data
 library(readr)
-PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
-PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
+# PITS_2023_2025_public <- read_csv("data/pits2023-2025-public.csv")
+# PITS_2023_2025_public  <- PITS_2023_2025_public [,-1]
 ```
 
 # Group by hour and count events
 
 ```{r}
-# # Group by hour and count events
+# Group by hour and count events
 hourly_summary <- PITS_2023_2025_public %>%
   select(hour_label, Location, Infractions, time_parsed, Date2) %>%
   # mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
@@ -406,19 +501,7 @@ usethis::edit_r_environ()
 ## hourly location summary
 
 ```{r}
-# More efficient approach
-# hourly_location_summary <- PITS_2023_2025_public %>%
-#   # Select only necessary columns to reduce memory usage
-#   select(hour_label, Location_Standard, Date2) %>%
-#   # Pre-aggregate to reduce data size before pivoting
-#   count(Date2, hour_label, Location_Standard, name = "count") %>%
-#   # Now pivot with the smaller dataset
-#   pivot_wider(
-#     id_cols = c(Date2, hour_label),
-#     names_from = Location_Standard,
-#     values_from = count,
-#     values_fill = 0
-#   )
+
 library(dplyr)
 library(tidyr)
 
@@ -1368,7 +1451,7 @@ PITS_public_summary_table <- PITS_public_summary %>%
   kable("html", 
         col.names = c("Category", "Count", "Percentage (%)"), 
         format.args = list(big.mark = ",")) %>%
-   add_header_above(c("PITS Incident Category by Type (Jan 2023 - Mar 2025)" = 3)) %>%  # Add table title spanning all 4 columns
+   add_header_above(c("PITS Incident Category by Type" = 3)) %>%  # Add table title spanning all 4 columns
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = FALSE
@@ -1377,14 +1460,18 @@ PITS_public_summary_table <- PITS_public_summary %>%
   column_spec(3, color = "blue") %>%
   row_spec(0, bold = TRUE, color = "white", background = "#428bca")
 
-save_kable(PITS_public_summary_table, file = "PITS_incident_type_summary_table.html")
+# save_kable(PITS_public_summary_table, file = "PITS_incident_type_summary_table.html")
 
 
-
+PITS_public_summary_table
+```
+## drop old category for PITS_public
+```{r}
+PITS_public2 <- PITS_public %>% 
+  select(-categories)
 ```
 
 ## pivot pits_public wide
-
 ```{r}
 
 PITS_public_wide <- PITS_public %>%
@@ -1651,20 +1738,14 @@ bscols(
 #   summarise(Total_Incidents = sum(Count)))
 ```
 
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-
-```
 
 ## Write csv
 ```{r}
 write.csv(PITS_2023_2025_public, "pits2023-2025-public.csv")
+
+# preprocessed data for shiny
+write.csv(PITS_public2, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/PITS_public2.csv")
+write.csv(hourly_loc_long2, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/hourly_loc_long2.csv")
+write.csv(incident_counts_with_total, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/incident_counts_with_total.csv")
+write.csv(incident_counts, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/incident_counts.csv")
 ```
