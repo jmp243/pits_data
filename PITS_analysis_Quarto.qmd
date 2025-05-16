@@ -1417,7 +1417,20 @@ PITS_public$`Start Date` <- as.Date(PITS_public$`Start Date`, format = "%m/%d/%Y
 PITS_public$`End Date` <- as.Date(PITS_public$`End Date`, format = "%m/%d/%Y")
 
 # create a column that calculates duration by day
+# Calculate duration with error handling
+PITS_public <- PITS_public %>%
+  mutate(Suspension_length = case_when(
+    is.na(`End Date`) | is.na(`Start Date`) ~ NA_real_,
+    `End Date` < `Start Date` ~ NA_real_,  # Flag potential data errors
+    TRUE ~ as.numeric(`End Date` - `Start Date`)
+  )) %>% 
+  mutate(susp_binary = ifelse(`Suspension Status` == "NONE", 0, 1))
 
+# Optionally, count instances of potential data errors
+error_count <- sum(PITS_public$`End Date` < PITS_public$`Start Date`, na.rm = TRUE)
+if(error_count > 0) {
+  warning(paste("Found", error_count, "records where End Date is before Start Date"))
+}
 
 ```
 
@@ -1481,7 +1494,7 @@ PITS_public_summary_table
 ## drop old category for PITS_public
 ```{r}
 PITS_public2 <- PITS_public %>% 
-  select(-categories)
+  select(c(-categories, -Location))
 ```
 
 ## pivot pits_public wide
