@@ -686,8 +686,11 @@ PITS_public2 <- PITS_public %>%
   select(c(-categories, -Location))
 ```
 
-# visual of suspension length
+# write CSV
 ```{r}
+# preprocessed data for shiny
+write.csv(PITS_public2, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/PITS_public2.csv")
 
+write.csv(MyPC_public, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/MyPC_public.csv")
 ```
 
