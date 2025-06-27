@@ -32,19 +32,20 @@ PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListInc
 
 PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(19:23)] 
 
-PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_Jan-April29_2025.csv")
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_Jan-Jun24_2025.csv")
 PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
 
 # merge the years
 PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_ListIncidents_2025)
 
+```
+```{r}
 # read in suspension data
-PITS_susp <- read_csv("~/data librarian/PITS_Data/PITS_ListSuspensions2023_april29_2025.csv")
+PITS_susp <- read_csv("~/data librarian/PITS_Data/PITS_ListSuspensions2023_june24_2025.csv")
 PITS_susp$`Incident ID` <- as.character(PITS_susp$`Incident ID`)
 
 # left join suspensions to incidents
 PITS_2023_2025 <- PITS_2023_2025 %>% left_join(PITS_susp)
-
 ```
 
 
@@ -692,5 +693,36 @@ PITS_public2 <- PITS_public %>%
 write.csv(PITS_public2, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/PITS_public2.csv")
 
 write.csv(MyPC_public, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/MyPC_public.csv")
+```
+
+# table for suspensions
+
+```{r}
+# Need to install plotly from Github to get funnel plots
+# devtools::install_github("ropensci/plotly")
+library(plotly)
+library(dplyr)
+library(kableExtra)
+
+library(ggpubr)
+# Compute summary with percentages
+PITS_public_susp <- PITS_public2 %>%
+  group_by(`Incident ID`, susp_binary, Suspension_length) %>%
+  summarise(count = n(), .groups = "drop")
+  # mutate(
+  #   percentage = round((count / sum(count)) * 100, 1)  # Calculate & round percentage
+  # ) %>%
+  # arrange(desc(count))  # Sort by highest count
+
+# fig <- plot_ly() 
+# fig <- fig %>%
+#   add_trace(
+#   type = "funnel",
+#   y = c("Website visit", "Downloads", "Potential customers", "Requested price", "invoice sent"),
+#   x = c(39, 27.4, 20.6, 11, 2)) 
+# fig <- fig %>%
+#   layout(yaxis = list(categoryarray = c("Website visit", "Downloads", "Potential customers", "Requested price", "invoice sent")))
+# 
+# fig
 ```
 
