@@ -290,75 +290,7 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
 # Group by hour and count events
 
 ```{r}
-# # Group by hour and count events
-# hourly_summary <- PITS_2023_2025_public %>%
-#   select(hour_label, Location, Infractions, time_parsed, Date2) %>%
-#   # mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
-#   group_by(hour_label) %>%
-#   summarize(
-#     Total_Hourly_Count = n(),
-#     # other aggregate metrics as needed
-#   )
-# 
-# hourly_location_date_summary <- PITS_2023_2025_public %>%
-#   select(hour_label, hour_group, Location_Standard, time_parsed, Date2) %>%
-#   # Group by date as well as hour and location
-#   group_by(Date2, hour_label, Location_Standard) %>%
-#   summarize(
-#     count = n(),
-#     .groups = "drop"
-#   ) %>%
-#   # Create a wide format with Location combinations as columns
-#   pivot_wider(
-#     id_cols = c(Date2, hour_label),  # Keep Date2 as an identifier column
-#     names_from = Location_Standard,
-#     values_from = count,
-#     values_fill = 0
-#   )
-# 
-# # more information 
-# hourly_location_summary <- PITS_2023_2025_public %>%
-#   select(hour_label, hour_group, Location_Standard, time_parsed, Date2) %>% 
-#   # mutate(hour_group = floor_date(time_parsed, unit = "hour")) %>%
-#   group_by(hour_label, Location_Standard) %>%
-#   summarize(
-#     count = n(),
-#     .groups = "drop"
-#   ) %>%
-#   # Create a wide format with Location combinations as columns
-#   pivot_wider(
-#     names_from = c(Location_Standard),
-#     values_from = count,
-#     values_fill = 0
-#   ) %>%
-#   # Additional check to ensure no NAs
-#   mutate_all(~ifelse(is.na(.), 0, .))
-# 
-# 
-# 
-# # join the two charts
-# hourly_loc_sum_total <-  hourly_summary %>% 
-#                                     left_join(hourly_location_date_summary)
-# 
-# ```
-# 
-# ## hourly location summary
-# 
-# ```{r}
-# hourly_location_summary <- PITS_2023_2025_public %>%
-#   # Select only necessary columns to reduce memory usage
-#   select(hour_label, Location_Standard, Date2) %>%
-#   # Pre-aggregate to reduce data size before pivoting
-#   count(Date2, hour_label, Location_Standard, name = "count") %>%
-#   # Now pivot with the smaller dataset
-#   pivot_wider(
-#     id_cols = c(Date2, hour_label),
-#     names_from = Location_Standard,
-#     values_from = count,
-#     values_fill = 0
-#   ) %>%
-#   # Ensure all NA values are replaced with 0
-#   filter(hour_label!= 0)
+
 
 ```
 
@@ -649,7 +581,7 @@ result_wide
 ```{r}
 result_df <- result_df %>% 
   rename(categories = category_source) %>% 
-  rename(parsed_categories = extracted_category)
+  rename(parsed_categories = extracted_category) 
 
 
 PITS_public <- rbind(result_df, PITS_categories2) %>% 
@@ -684,7 +616,9 @@ if(error_count > 0) {
 ## drop old category for PITS_public
 ```{r}
 PITS_public2 <- PITS_public %>% 
-  select(c(-categories, -Location))
+  select(c(-categories, -Location)) %>% 
+  rename(Susp_Start_date = `Start Date`) %>% 
+  rename(Susp_End_date = `End Date`)
 ```
 
 # write CSV
