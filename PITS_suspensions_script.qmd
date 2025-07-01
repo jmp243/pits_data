@@ -173,6 +173,33 @@ MyPC_public <- standardize_dataset(MyPC_public, "Site")
 
 ```
 
+
+```{r}
+# make tables similar to pits
+library(plotly)
+library(dplyr)
+library(crosstalk)
+library(lubridate)
+library(htmltools)
+# First, prepare the data
+MyPC_public <- MyPC_public %>%
+  mutate(
+    # # Make sure booking_from is properly parsed
+    # booking_from = if(!inherits(`Booking From`, "POSIXct")) 
+    #                  as.POSIXct(`Booking From`) else `Booking From`,
+    # Extract hour for grouping
+    hour_of_day = hour(booking_from),
+    hour_label = paste0(hour_of_day, ":00")
+  )
+
+# Aggregate data by hour and location
+hourly_usage <- MyPC_public %>%
+  group_by(hour_label, Location_Standard, booking_date) %>%
+  summarize(count = n(), .groups = "drop") %>%
+  arrange(as.numeric(substr(hour_label, 1, 2)))
+
+```
+
 # mask names of the branches
 
 ```{r}
@@ -616,10 +643,45 @@ if(error_count > 0) {
 ## drop old category for PITS_public
 ```{r}
 PITS_public2 <- PITS_public %>% 
-  select(c(-categories, -Location)) %>% 
+  select(c(-categories, -Location, -`Person Name`)) %>% 
   rename(Susp_Start_date = `Start Date`) %>% 
   rename(Susp_End_date = `End Date`)
 ```
+
+```{r}
+# develop a way to view suspensions
+followup_public <- PITS_public2 %>% 
+  filter(Followup_binary == 1) %>% 
+  unique()
+
+suspension_public <- PITS_public2 %>% 
+  filter(susp_binary ==1) %>% 
+  unique()
+
+susp_but_no_followup <- anti_join(followup_public, suspension_public)
+# followup_but_no_susp <- anti_join(suspension_public, followup_public) 
+# is 0
+```
+```{r}
+# From making a table
+library(ggplot2)
+
+# Ensure branch_masked is a factor
+# followup_public$branch_masked <- as.factor(followup_public$branch_masked)
+
+ggplot(followup_public, aes(x = Location_masked, y = Suspension_length, fill = Location_masked)) +
+  geom_violin(trim = FALSE, color = "black") +        # Full violin shape with border
+  geom_boxplot(width = 0.1, fill = "white", alpha = 0.7) +  # Optional: overlay boxplot
+  stat_summary(fun = median, geom = "point", size = 2, color = "red") +  # Add median points
+  labs(
+    title = "Distribution of Suspension Length by Branch",
+    x = "Branch",
+    y = "Suspension Length"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
 
 # write CSV
 ```{r}
