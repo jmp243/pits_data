@@ -307,7 +307,7 @@ PITS_2023_2025_public$hour_label <- format(PITS_2023_2025_public$hour_group, "%H
 
 ```
 
-
+# remove NA dates
 ```{r}
 # remove NA dates
 PITS_2023_2025_public <- PITS_2023_2025_public %>% 
@@ -345,7 +345,9 @@ hourly_location_summary <- PITS_2023_2025_public %>%
 
 # Check if NA values are removed
 sum(is.na(hourly_location_summary))  # Should return 0
+
 ```
+# convert hourly to long format
 ```{r}
 library(plotly)
 library(dplyr)
@@ -662,6 +664,36 @@ susp_but_no_followup <- anti_join(followup_public, suspension_public)
 # followup_but_no_susp <- anti_join(suspension_public, followup_public) 
 # is 0
 ```
+# table for suspensions
+
+```{r}
+# Need to install plotly from Github to get funnel plots
+# devtools::install_github("ropensci/plotly")
+library(plotly)
+library(dplyr)
+library(kableExtra)
+
+library(ggpubr)
+# Compute summary with percentages
+PITS_public_susp_days <- PITS_public2 %>%
+  filter(susp_binary ==1) %>% 
+  group_by(Location_masked) %>%
+  summarise(count = n(), 
+            avg_suspension_days = round(mean(Suspension_length, na.rm = TRUE), 1), .groups = "drop")
+
+PITS_public_susp_days
+```
+
+# suspension length by location
+```{r}
+# Compute summary with percentages
+PITS_public_susp <- PITS_public2 %>%
+  group_by(Location_masked, `Incident ID`, Suspension_length) %>%
+  summarise(count = n(), .groups = "drop")
+PITS_public_susp
+```
+
+
 ```{r}
 # From making a table
 library(ggplot2)
@@ -691,34 +723,4 @@ write.csv(PITS_public2, "~/data librarian/PITS_Data/pits_reports_analysis/proces
 write.csv(MyPC_public, "~/data librarian/PITS_Data/pits_reports_analysis/processed_data/MyPC_public.csv")
 ```
 
-# table for suspensions
-
-```{r}
-# Need to install plotly from Github to get funnel plots
-# devtools::install_github("ropensci/plotly")
-library(plotly)
-library(dplyr)
-library(kableExtra)
-
-library(ggpubr)
-# Compute summary with percentages
-PITS_public_susp <- PITS_public2 %>%
-  group_by(`Incident ID`, susp_binary, Suspension_length) %>%
-  summarise(count = n(), .groups = "drop")
-  # mutate(
-  #   percentage = round((count / sum(count)) * 100, 1)  # Calculate & round percentage
-  # ) %>%
-  # arrange(desc(count))  # Sort by highest count
-
-# fig <- plot_ly() 
-# fig <- fig %>%
-#   add_trace(
-#   type = "funnel",
-#   y = c("Website visit", "Downloads", "Potential customers", "Requested price", "invoice sent"),
-#   x = c(39, 27.4, 20.6, 11, 2)) 
-# fig <- fig %>%
-#   layout(yaxis = list(categoryarray = c("Website visit", "Downloads", "Potential customers", "Requested price", "invoice sent")))
-# 
-# fig
-```
 
