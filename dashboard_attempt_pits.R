@@ -349,7 +349,7 @@ server <- function(input, output, session) {
   
   output$Violin_PITS_Susp_length <- renderPlotly({
     # Step 1: Filter raw data for suspended incidents
-    suspended_raw <- data2() %>%
+    suspended_raw <- data() %>%
       filter(susp_binary == 1) %>%
       distinct(`Incident ID`, Location_masked, Date2, Suspension_length, .keep_all = TRUE)
     
@@ -375,7 +375,7 @@ server <- function(input, output, session) {
       box = list(visible = TRUE),
       meanline = list(visible = TRUE),
       points = "all",
-      jitter = 0.3,
+      jitter = 0.2,
       scalemode = "count",
       marker = list(opacity = 0.6, size = 4)
     ) %>%
