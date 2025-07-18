@@ -169,14 +169,14 @@ ui <- dashboardPage(
       box(
         title = "Violin Plot of Suspension Lengths",
         width = 4,
-        height = "100%", 
+        height = "80%", 
         plotlyOutput("Violin_PITS_Susp_length")
       ),
       
       box(
         title = "Types of Incidents",
         width = 4,
-        height = "100%", 
+        height = "80%", 
         DTOutput("table_data")
       )
     ),
@@ -343,7 +343,7 @@ server <- function(input, output, session) {
         yaxis = list(title = "Number of Sessions"),
         barmode = "stack",
         hovermode = "compare",
-        showlegend = FALSE # Changed to TRUE for better readability
+        showlegend = FALSE
       )
   })
   
@@ -421,7 +421,8 @@ server <- function(input, output, session) {
         xaxis = list(title = "Hour of Day", tickangle = 45),
         yaxis = list(title = "Number of Incidents"),
         barmode = "stack",
-        hovermode = "compare"
+        hovermode = "compare",
+        showlegend = FALSE
       )
   })
   
