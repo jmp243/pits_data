@@ -32,7 +32,7 @@ PITS_ListIncidents_2024 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListInc
 
 PITS_ListIncidents_2024 <- PITS_ListIncidents_2024[,-(19:23)] 
 
-PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_Jan-Jun24_2025.csv")
+PITS_ListIncidents_2025 <- read_csv("~/data librarian/PITS_Data/new_PITS_ListIncidents_Jan-Jul16_2025.csv")
 PITS_ListIncidents_2025$Time <- as.character(PITS_ListIncidents_2025$Time)
 
 # merge the years
@@ -41,7 +41,7 @@ PITS_2023_2025 <- rbind(PITS_ListIncidents_2023, PITS_ListIncidents_2024, PITS_L
 ```
 ```{r}
 # read in suspension data
-PITS_susp <- read_csv("~/data librarian/PITS_Data/PITS_ListSuspensions2023_june24_2025.csv")
+PITS_susp <- read_csv("~/data librarian/PITS_Data/PITS_ListSuspensions2023_july18_2025.csv")
 PITS_susp$`Incident ID` <- as.character(PITS_susp$`Incident ID`)
 
 # left join suspensions to incidents
@@ -314,12 +314,6 @@ PITS_2023_2025_public <- PITS_2023_2025_public %>%
   filter(!is.na(Date))
 ```
 
-# Group by hour and count events
-
-```{r}
-
-
-```
 
 ## hourly location summary
 
@@ -329,7 +323,7 @@ library(dplyr)
 library(tidyr)
 
 hourly_location_summary <- PITS_2023_2025_public %>%
-  # Select only necessary columns to reduce memory usage
+  # Select only necessary columns
   select(hour_label, Location_Standard, Date2) %>%
   # Pre-aggregate to reduce data size before pivoting
   count(Date2, hour_label, Location_Standard, name = "count") %>%
@@ -678,7 +672,7 @@ library(ggpubr)
 PITS_public_susp_days <- PITS_public2 %>%
   filter(susp_binary ==1) %>% 
   group_by(Location_masked) %>%
-  summarise(count = n(), 
+  summarise(susp_count = n(), 
             avg_suspension_days = round(mean(Suspension_length, na.rm = TRUE), 1), .groups = "drop")
 
 PITS_public_susp_days
@@ -701,7 +695,7 @@ library(ggplot2)
 # Ensure branch_masked is a factor
 # followup_public$branch_masked <- as.factor(followup_public$branch_masked)
 
-ggplot(followup_public, aes(x = Location_masked, y = Suspension_length, fill = Location_masked)) +
+ggplot(PITS_public_susp, aes(x = Location_masked, y = Suspension_length, fill = Location_masked)) +
   geom_violin(trim = FALSE, color = "black") +        # Full violin shape with border
   geom_boxplot(width = 0.1, fill = "white", alpha = 0.7) +  # Optional: overlay boxplot
   stat_summary(fun = median, geom = "point", size = 2, color = "red") +  # Add median points
@@ -712,6 +706,7 @@ ggplot(followup_public, aes(x = Location_masked, y = Suspension_length, fill = L
   ) +
   theme_minimal() +
   theme(legend.position = "none")
+
 ```
 
 
